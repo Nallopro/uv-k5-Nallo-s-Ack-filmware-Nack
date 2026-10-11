@@ -77,6 +77,62 @@
 
 center_line_t center_line = CENTER_LINE_NONE;
 
+typedef enum {
+    NACK_UI_NONE = 0,
+    NACK_UI_ACK,
+    NACK_UI_SNR,
+    NACK_UI_EMG
+} NACK_UI_Type_t;
+
+typedef struct {
+    char id[5];
+    uint8_t value;
+    uint8_t ttl_500ms;
+    NACK_UI_Type_t type;
+} NACK_UI_Entry_t;
+
+static NACK_UI_Entry_t gNackUi[2];
+
+static void UI_MAIN_NotifyNack(NACK_UI_Type_t type, const char id[4], uint8_t value)
+{
+    char clean[5];
+    memcpy(clean, id, 4);
+    clean[4] = '\0';
+
+    if (gNackUi[0].ttl_500ms > 0 && gNackUi[0].type == type &&
+        memcmp(gNackUi[0].id, clean, 4) == 0) {
+        memcpy(gNackUi[0].id, clean, sizeof(clean));
+        gNackUi[0].value = value;
+        gNackUi[0].ttl_500ms = 20;
+    } else {
+        if (gNackUi[1].ttl_500ms > 0 && gNackUi[1].type == type &&
+            memcmp(gNackUi[1].id, clean, 4) == 0)
+            memset(&gNackUi[1], 0, sizeof(gNackUi[1]));
+        gNackUi[1] = gNackUi[0];
+        memset(&gNackUi[0], 0, sizeof(gNackUi[0]));
+        memcpy(gNackUi[0].id, clean, sizeof(clean));
+        gNackUi[0].value = value;
+        gNackUi[0].type = type;
+        gNackUi[0].ttl_500ms = 20;
+    }
+    gUpdateDisplay = true;
+}
+
+void UI_MAIN_NotifyAckId(const char id[4])
+{
+    UI_MAIN_NotifyNack(NACK_UI_ACK, id, 0);
+}
+
+void UI_MAIN_NotifySnr(const char id[4], uint8_t snr)
+{
+    UI_MAIN_NotifyNack(NACK_UI_SNR, id, snr > 40 ? 40 : snr);
+}
+
+void UI_MAIN_NotifyEmergency(const char id[4])
+{
+    UI_MAIN_NotifyNack(NACK_UI_EMG, id, 0);
+}
+
 
 
 const int8_t dBmCorrTable[7] = {
@@ -562,8 +618,17 @@ void UI_MAIN_PrintAGC(bool now)
 
 
 void UI_MAIN_TimeSlice500ms(void)
-
 {
+    bool nackChanged = false;
+    for (unsigned int i = 0; i < 2; i++) {
+        if (gNackUi[i].ttl_500ms > 0 && --gNackUi[i].ttl_500ms == 0) {
+            memset(&gNackUi[i], 0, sizeof(gNackUi[i]));
+            nackChanged = true;
+        }
+    }
+    if (nackChanged)
+        gUpdateDisplay = true;
+
 
     if(gScreenToDisplay==DISPLAY_MAIN) {
 
@@ -1287,6 +1352,34 @@ void UI_DisplayMain(void)
 
 
         const bool rx = FUNCTION_IsRx();
+
+        if (gNackUi[0].ttl_500ms > 0 || gNackUi[1].ttl_500ms > 0)
+        {
+            char line[22];
+            const NACK_UI_Entry_t *a = gNackUi[0].ttl_500ms > 0 ? &gNackUi[0] : &gNackUi[1];
+            const NACK_UI_Entry_t *b = (gNackUi[0].ttl_500ms > 0 && gNackUi[1].ttl_500ms > 0 &&
+                                        gNackUi[1].type == a->type) ? &gNackUi[1] : NULL;
+            center_line = CENTER_LINE_ACKED;
+
+            if (a->type == NACK_UI_SNR) {
+                if (b != NULL)
+                    sprintf(line, "SNR:%s %u %s %u", a->id, a->value, b->id, b->value);
+                else
+                    sprintf(line, "%s SNR:%u", a->id, a->value);
+            } else if (a->type == NACK_UI_EMG) {
+                if (b != NULL)
+                    sprintf(line, "EMG:%s %s", a->id, b->id);
+                else
+                    sprintf(line, "%s EMG", a->id);
+            } else {
+                if (b != NULL)
+                    sprintf(line, "Acked:%s %s", a->id, b->id);
+                else
+                    sprintf(line, "Acked:%s", a->id);
+            }
+            UI_PrintStringSmallNormal(line, 2, 0, 3);
+        }
+        else
 
 
 

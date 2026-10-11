@@ -699,6 +699,14 @@ void RADIO_SetupRegisters(bool switchToForeground)
 
 	RADIO_SetupAGC(gRxVfo->Modulation == MODULATION_AM, false);
 
+	// Nallo ACK-ID decoder: always armed during normal FM RX.
+	if (gRxVfo->Modulation == MODULATION_FM) {
+		BK4819_SetupNackFSKReceive();
+		InterruptMask |= BK4819_REG_3F_FSK_RX_FINISHED |
+		                 BK4819_REG_3F_FSK_FIFO_ALMOST_FULL |
+		                 BK4819_REG_3F_FSK_RX_SYNC;
+	}
+
 	// enable/disable BK4819 selected interrupts
 	BK4819_WriteRegister(BK4819_REG_3F, InterruptMask);
 
@@ -780,6 +788,14 @@ void RADIO_SetTxParameters(void)
 	}
 
 	BK4819_SetFrequency(gCurrentVfo->pTX->Frequency);
+
+	// Nallo ACK-ID: RX FSK stays armed while listening.
+	// Disable the FSK modem and Tone2 before any normal TX so the microphone
+	// path is restored. SQLACK_SendId() will re-enable FSK only for the short
+	// digital ACK packet.
+	BK4819_WriteRegister(BK4819_REG_59, 0x0068);
+	BK4819_WriteRegister(BK4819_REG_58, 0x0000);
+	BK4819_WriteRegister(BK4819_REG_70, 0x0000);
 
 	// TX compressor
 	BK4819_SetCompander((gRxVfo->Modulation == MODULATION_FM && (gRxVfo->Compander == 1 || gRxVfo->Compander >= 3)) ? gRxVfo->Compander : 0);

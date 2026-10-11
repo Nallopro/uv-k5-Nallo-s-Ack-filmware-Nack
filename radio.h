@@ -124,7 +124,6 @@ typedef struct VFO_Info_t
 	PTT_ID_t       DTMF_PTT_ID_TX_MODE;
 
 	uint8_t        BUSY_CHANNEL_LOCK;
-	
 	uint8_t        SQL_ACK_MODE;
 
 	ModulationMode_t    Modulation;

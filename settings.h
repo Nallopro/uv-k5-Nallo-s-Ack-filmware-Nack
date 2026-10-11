@@ -90,6 +90,8 @@ enum ACTION_OPT_t {
 	ACTION_OPT_SWITCH_DEMODUL,
 	ACTION_OPT_BLMIN_TMP_OFF,
 	ACTION_OPT_SPECTRUM,
+	ACTION_OPT_SNR_REQUEST,
+	ACTION_OPT_EMERGENCY,
 	ACTION_OPT_LEN
 };
 
@@ -123,6 +125,14 @@ enum SQL_ACK_Mode_t {
     SQL_ACK_ID
 };
 typedef enum SQL_ACK_Mode_t SQL_ACK_Mode_t;
+
+enum EMG_RX_Mode_t {
+    EMG_RX_TEXT = 0,
+    EMG_RX_LIGHT,
+    EMG_RX_SOUND,
+    EMG_RX_LIGHT_SOUND
+};
+typedef enum EMG_RX_Mode_t EMG_RX_Mode_t;
 
 enum CHANNEL_DisplayMode_t {
 	MDF_FREQUENCY = 0,
@@ -164,6 +174,7 @@ typedef struct {
 #endif
 	bool                  BEEP_CONTROL;
 	char                  ACK_ID[5];
+	uint8_t               EMG_RX_MODE;
 	uint8_t               CHANNEL_DISPLAY_MODE;
 	bool                  TAIL_TONE_ELIMINATION;
 	bool                  VFO_OPEN;

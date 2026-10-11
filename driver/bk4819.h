@@ -162,6 +162,10 @@ uint8_t  BK4819_GetCTCType(void);
 void     BK4819_SendFSKData(uint16_t *pData);
 void     BK4819_PrepareFSKReceive(void);
 
+// Nallo ACK-ID: 1200 bps 2FSK, 8-byte packet
+void     BK4819_SetupNackFSKReceive(void);
+void     BK4819_SendNackFSK(const uint8_t data[14]);
+
 void     BK4819_PlayRoger(void);
 
 void     BK4819_Enable_AfDac_DiscMode_TxDsp(void);

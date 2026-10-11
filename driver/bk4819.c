@@ -1686,6 +1686,57 @@ void BK4819_PrepareFSKReceive(void)
 	BK4819_WriteRegister(BK4819_REG_59, 0x3068);
 }
 
+// ---------------------------------------------------------------------------
+// Nallo ACK-ID modem - 1200 bps 2FSK
+// ---------------------------------------------------------------------------
+static void BK4819_SetupNackFSKCommon(void)
+{
+	BK4819_WriteRegister(BK4819_REG_70, 0x00E0);
+	BK4819_WriteRegister(BK4819_REG_72, 0x3065); // 1200 baud
+	BK4819_WriteRegister(BK4819_REG_58, 0x00C1); // FSK 1.2K
+	BK4819_WriteRegister(BK4819_REG_5C, 0xAA30); // HW CRC off
+	BK4819_WriteRegister(BK4819_REG_5D, 0x0D00); // 14 bytes
+	BK4819_WriteRegister(BK4819_REG_5A, 0x4E41);
+	BK4819_WriteRegister(BK4819_REG_5B, 0x434B);
+}
+
+void BK4819_SetupNackFSKReceive(void)
+{
+	BK4819_SetupNackFSKCommon();
+	BK4819_WriteRegister(BK4819_REG_59, 0x4068); // clear RX FIFO
+	BK4819_WriteRegister(BK4819_REG_59, 0x1068); // RX on, no scramble
+}
+
+void BK4819_SendNackFSK(const uint8_t data[14])
+{
+	uint16_t words[7];
+	for (unsigned int i = 0; i < 7; i++)
+		words[i] = (uint16_t)data[i * 2] | ((uint16_t)data[i * 2 + 1] << 8);
+
+	BK4819_SetAF(BK4819_AF_MUTE);
+	BK4819_SetupNackFSKCommon();
+	BK4819_WriteRegister(BK4819_REG_02, 0);
+	BK4819_WriteRegister(BK4819_REG_3F, BK4819_REG_3F_FSK_TX_FINISHED);
+	BK4819_WriteRegister(BK4819_REG_59, 0x8068);
+	BK4819_WriteRegister(BK4819_REG_59, 0x0068);
+
+	for (unsigned int i = 0; i < 7; i++)
+		BK4819_WriteRegister(BK4819_REG_5F, words[i]);
+
+	SYSTEM_DelayMs(10);
+	BK4819_WriteRegister(BK4819_REG_59, 0x0868); // TX on, no scramble
+
+	uint8_t timeout = 50;
+	while (timeout-- && (BK4819_ReadRegister(BK4819_REG_0C) & 1u) == 0)
+		SYSTEM_DelayMs(5);
+
+	BK4819_WriteRegister(BK4819_REG_02, 0);
+	BK4819_WriteRegister(BK4819_REG_59, 0x0068);
+	BK4819_WriteRegister(BK4819_REG_70, 0x0000);
+	BK4819_WriteRegister(BK4819_REG_58, 0x0000);
+}
+
+
 static void BK4819_PlayRogerNormal(void)
 {
 	#if 0

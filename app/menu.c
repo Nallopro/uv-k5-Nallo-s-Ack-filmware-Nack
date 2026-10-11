@@ -288,6 +288,14 @@ int MENU_GetLimits(uint8_t menu_id, int32_t *pMin, int32_t *pMax)
 
     break;
 
+        case MENU_EMG_RX:
+
+    *pMin = 0;
+
+    *pMax = 3;
+
+    break;
+
 
 
         case MENU_F_LOCK:
@@ -1007,6 +1015,16 @@ void MENU_AcceptSetting(void)
             return;
 
 
+
+        case MENU_ACK_ID:
+
+            memcpy(gEeprom.ACK_ID, edit, 4);
+            gEeprom.ACK_ID[4] = '\0';
+            break;
+
+        case MENU_EMG_RX:
+            gEeprom.EMG_RX_MODE = gSubMenuSelection;
+            break;
 
         case MENU_SAVE:
 
@@ -2248,6 +2266,11 @@ void MENU_ShowCurrentSetting(void)
 
 
 
+    case MENU_EMG_RX:
+
+    gSubMenuSelection = gEeprom.EMG_RX_MODE;
+    break;
+
     case MENU_SQLACK:
 
     if (gTxVfo->SQL_ACK_MODE == SQL_ACK_MUTE)
@@ -2354,6 +2377,12 @@ static void MENU_Key_0_to_9(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
 
     gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
 
+
+
+    if (UI_MENU_GetCurrentMenuId() == MENU_ACK_ID && gIsInSubMenu && edit_index >= 0)
+    {   // ACK ID: edit only with UP/DOWN; MENU advances; EXIT goes back
+        return;
+    }
 
 
     if (UI_MENU_GetCurrentMenuId() == MENU_MEM_NAME && edit_index >= 0)
@@ -2654,6 +2683,27 @@ static void MENU_Key_EXIT(bool bKeyPressed, bool bKeyHeld)
 
     gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
 
+    // ACK ID editor: EXIT goes one character back.
+    // EXIT on the first character closes without saving.
+    if (UI_MENU_GetCurrentMenuId() == MENU_ACK_ID && gIsInSubMenu && edit_index >= 0)
+    {
+        if (edit_index > 0)
+        {
+            edit_index--;
+            gRequestDisplayScreen = DISPLAY_MENU;
+            return;
+        }
+
+        memcpy(edit, edit_original, 5);
+        gAskForConfirmation = 0;
+        gIsInSubMenu = false;
+        gInputBoxIndex = 0;
+        gFlagAcceptSetting = false;
+        gFlagRefreshSetting = true;
+        gRequestDisplayScreen = DISPLAY_MENU;
+        return;
+    }
+
 
 
     if (!gCssBackgroundScan)
@@ -2816,8 +2866,47 @@ static void MENU_Key_MENU(const bool bKeyPressed, const bool bKeyHeld)
 
         }
 
+        if (UI_MENU_GetCurrentMenuId() == MENU_ACK_ID)
 
+        {
 
+            memcpy(edit, gEeprom.ACK_ID, 4);
+            edit[4] = '\0';
+
+            // ACK ID only allows 0-9 and A-Z
+            for (int i = 0; i < 4; i++)
+
+            {
+
+                if (!((edit[i] >= '0' && edit[i] <= '9') ||
+                      (edit[i] >= 'A' && edit[i] <= 'Z')))
+                    edit[i] = '0';
+
+            }
+
+            memcpy(edit_original, edit, 5);
+            edit_index = 0;
+            return;
+
+        }
+
+        return;
+
+    }
+
+    if (UI_MENU_GetCurrentMenuId() == MENU_ACK_ID && edit_index >= 0)
+
+    {
+
+        if (++edit_index < 4)
+            return;
+
+        // fourth character confirmed -> save immediately
+        gFlagAcceptSetting     = true;
+        gIsInSubMenu           = false;
+        gAskForConfirmation    = 0;
+        gInputBoxIndex         = 0;
+        gRequestDisplayScreen  = DISPLAY_MENU;
         return;
 
     }
@@ -3129,6 +3218,47 @@ static void MENU_Key_UP_DOWN(bool bKeyPressed, bool bKeyHeld, int8_t Direction)
     bool    bCheckScanList;
 
 
+
+    if (UI_MENU_GetCurrentMenuId() == MENU_ACK_ID && gIsInSubMenu && edit_index >= 0)
+
+    {
+
+        if (bKeyPressed && edit_index < 4 && Direction != 0)
+
+        {
+
+            static const char chars[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            int pos = 0;
+
+            for (int i = 0; i < 36; i++)
+
+            {
+
+                if (chars[i] == edit[edit_index])
+
+                {
+
+                    pos = i;
+                    break;
+
+                }
+
+            }
+
+            pos += Direction;
+            if (pos < 0)
+                pos = 35;
+            else if (pos > 35)
+                pos = 0;
+
+            edit[edit_index] = chars[pos];
+            gRequestDisplayScreen = DISPLAY_MENU;
+
+        }
+
+        return;
+
+    }
 
     if (UI_MENU_GetCurrentMenuId() == MENU_MEM_NAME && gIsInSubMenu && edit_index >= 0)
 

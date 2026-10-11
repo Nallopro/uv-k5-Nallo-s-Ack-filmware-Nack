@@ -440,3 +440,61 @@ void AUDIO_PlayQueuedVoice(void)
 }
 
 #endif
+
+
+// Local emergency alarm: a short rising four-step sweep, then the caller
+// starts it again on the next 500 ms tick.  It is deliberately local-only;
+// nothing is transmitted over RF.
+void AUDIO_PlayEmergencySweep(void)
+{
+    if (gCurrentFunction == FUNCTION_RECEIVE ||
+        gCurrentFunction == FUNCTION_MONITOR ||
+        gCurrentFunction == FUNCTION_TRANSMIT)
+        return;
+
+#ifdef ENABLE_FMRADIO
+    if (gFmRadioMode)
+        BK1080_Mute(true);
+#endif
+
+    AUDIO_AudioPathOff();
+
+    if (gCurrentFunction == FUNCTION_POWER_SAVE && gRxIdleMode)
+        BK4819_RX_TurnOn();
+
+    SYSTEM_DelayMs(15);
+
+    const uint16_t ToneConfig = BK4819_ReadRegister(BK4819_REG_71);
+    const uint16_t tones[] = {500, 650, 800, 1000};
+
+    AUDIO_AudioPathOn();
+    for (unsigned int i = 0; i < sizeof(tones) / sizeof(tones[0]); i++) {
+        BK4819_PlayTone(tones[i], true);
+        SYSTEM_DelayMs(2);
+        BK4819_ExitTxMute();
+        SYSTEM_DelayMs(65);
+        BK4819_EnterTxMute();
+        SYSTEM_DelayMs(8);
+    }
+
+    AUDIO_AudioPathOff();
+    SYSTEM_DelayMs(5);
+    BK4819_TurnsOffTones_TurnsOnRX();
+    SYSTEM_DelayMs(5);
+    BK4819_WriteRegister(BK4819_REG_71, ToneConfig);
+
+    if (gEnableSpeaker)
+        AUDIO_AudioPathOn();
+
+#ifdef ENABLE_FMRADIO
+    if (gFmRadioMode)
+        BK1080_Mute(false);
+#endif
+
+    if (gCurrentFunction == FUNCTION_POWER_SAVE && gRxIdleMode)
+        BK4819_Sleep();
+
+#ifdef ENABLE_VOX
+    gVoxResumeCountdown = 80;
+#endif
+}

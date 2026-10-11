@@ -123,6 +123,7 @@ const t_menu_item MenuList[] =
 
 {"ID",     VOICE_ID_INVALID,                       MENU_ACK_ID        },
 {"SqlAck", VOICE_ID_INVALID,                       MENU_SQLACK        },
+{"EmgRx",  VOICE_ID_INVALID,                       MENU_EMG_RX        },
 
 // hidden menu items from here on
 	// enabled if pressing both the PTT and upper side button at power-on
@@ -268,6 +269,14 @@ const char gSubMenu_SQLACK[4][5] =
     "ID"
 };
 
+const char gSubMenu_EMG_RX[4][6] =
+{
+    "TEXT",
+    "LIGHT",
+    "SOUND",
+    "L+S"
+};
+
 const char gSubMenu_RESET[][4] =
 {
 	"VFO",
@@ -363,8 +372,10 @@ const t_sidefunction gSubMenu_SIDEFUNCTIONS[] =
 	{"BLMIN\nTMP OFF",  ACTION_OPT_BLMIN_TMP_OFF}, 		//BackLight Minimum Temporay OFF
 #endif
 #ifdef ENABLE_SPECTRUM
-	{"SPECTRUM",         ACTION_OPT_SPECTRUM}
+	{"SPECTRUM",         ACTION_OPT_SPECTRUM},
 #endif
+	{"SNR\nREQ",         ACTION_OPT_SNR_REQUEST},
+	{"EMERG",            ACTION_OPT_EMERGENCY}
 };
 
 const uint8_t gSubMenu_SIDEFUNCTIONS_size = ARRAY_SIZE(gSubMenu_SIDEFUNCTIONS);
@@ -786,9 +797,33 @@ void UI_DisplayMenu(void)
 	strcpy(String, gSubMenu_SQLACK[gSubMenuSelection]);
 	break;
 
-case MENU_ACK_ID:
-	strcpy(String, gEeprom.ACK_ID);
+	case MENU_EMG_RX:
+	strcpy(String, gSubMenu_EMG_RX[gSubMenuSelection]);
 	break;
+
+case MENU_ACK_ID:
+
+    if (gIsInSubMenu && edit_index >= 0)
+    {
+        const unsigned int ack_id_x = 72;
+
+UI_PrintString(edit, ack_id_x, 0, 2, 8);
+
+if (edit_index < 4)
+    UI_PrintString("^",
+                   ack_id_x + (8 * edit_index),
+                   0,
+                   4,
+                   8);
+
+        already_printed = true;
+    }
+    else
+    {
+        strcpy(String, gEeprom.ACK_ID);
+    }
+
+    break;
 
 
 		case MENU_VOL:

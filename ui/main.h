@@ -24,6 +24,7 @@ enum center_line_t {
 	CENTER_LINE_RSSI,
 	CENTER_LINE_AM_FIX_DATA,
 	CENTER_LINE_DTMF_DEC,
+	CENTER_LINE_ACKED,
 	CENTER_LINE_CHARGE_DATA
 };
 
@@ -40,6 +41,9 @@ extern const int8_t dBmCorrTable[7];
 
 void UI_DisplayAudioBar(void);
 void UI_MAIN_TimeSlice500ms(void);
+void UI_MAIN_NotifyAckId(const char id[4]);
+void UI_MAIN_NotifySnr(const char id[4], uint8_t snr);
+void UI_MAIN_NotifyEmergency(const char id[4]);
 void UI_DisplayMain(void);
 
 #ifdef ENABLE_AGC_SHOW_DATA

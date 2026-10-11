@@ -117,6 +117,10 @@ inline static void ACTION_1750() { ACTION_AlarmOr1750(true); };
 
 inline static void ACTION_ScanRestart() { ACTION_Scan(true); };
 
+// Nallo digital actions implemented in app/app.c
+extern void NACK_ActionSnrRequest(void);
+extern void NACK_ActionEmergency(void);
+
 
 
 void (*action_opt_table[])(void) = {
@@ -220,6 +224,9 @@ void (*action_opt_table[])(void) = {
     [ACTION_OPT_SPECTRUM] = &FUNCTION_NOP,
 
 #endif
+
+    [ACTION_OPT_SNR_REQUEST] = &NACK_ActionSnrRequest,
+    [ACTION_OPT_EMERGENCY]   = &NACK_ActionEmergency,
 
 };
 

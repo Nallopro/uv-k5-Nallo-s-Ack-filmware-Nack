@@ -199,13 +199,12 @@ void SETTINGS_InitEEPROM(void)
 	}
 #else
 	// Nallo SqlAck settings - 0EE0..0EE7
-	// [0]='N', [1]='A', [2..5]=4-char ID, [6]=SqlAck mode, [7]=reserved
+	// [0]='N', [1]='A', [2..5]=4-char ID, [6..7]=reserved
 	EEPROM_ReadBuffer(0x0EE0, Data, 8);
 
 	bool valid =
 		Data[0] == 'N' &&
-		Data[1] == 'A' &&
-		Data[6] <= SQL_ACK_ID;
+		Data[1] == 'A';
 
 	if (valid) {
 		for (uint8_t i = 2; i < 6; i++) {
@@ -222,8 +221,8 @@ void SETTINGS_InitEEPROM(void)
 		gEeprom.ACK_ID[4] = '\0';
 	} else {
 		strcpy(gEeprom.ACK_ID, "0000");
-		
 	}
+	gEeprom.EMG_RX_MODE = (Data[6] <= EMG_RX_LIGHT_SOUND) ? Data[6] : EMG_RX_TEXT;
 #endif
 
 	// 0EF8..0F07
@@ -582,6 +581,7 @@ void SETTINGS_SaveSettings(void)
 	State[3] = gEeprom.ACK_ID[1];
 	State[4] = gEeprom.ACK_ID[2];
 	State[5] = gEeprom.ACK_ID[3];
+	State[6] = gEeprom.EMG_RX_MODE;
 	EEPROM_WriteBuffer(0x0EE0, State);
 #endif
 
