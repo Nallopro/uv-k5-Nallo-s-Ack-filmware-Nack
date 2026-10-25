@@ -460,16 +460,22 @@ static uint16_t SQLACK_RandomDelay(uint16_t min, uint16_t max)
 #define NACK_TYPE_SNR_RESP        0x03u
 #define NACK_TYPE_EMERGENCY       0x04u
 #define NACK_TYPE_EMERGENCY_ACK   0x05u
+#define NACK_TYPE_RANGEN_HELLO    0x06u
+#define NACK_TYPE_RANGEN_RESP     0x07u
 #define NACK_PACKET_BYTES         14u
+#define NACK_FSK_CARRIER_LEAD_MS   350u  // RF carrier before digital data, helps slow squelch
 #define NACK_PACKET_WORDS         7u
 #define NACK_RESPONSE_WINDOW_10MS 1000u
 #define NACK_EMG_COOLDOWN_10MS    2000u
 #define NACK_ALERT_TIME_10MS      3000u
+#define NACK_AUTO_TX_GUARD_10MS    30u   // 300 ms between automatic transmissions
+#define BEACON_BEEP_MS             120u
 
 typedef enum {
     NACK_PENDING_NONE = 0,
     NACK_PENDING_SNR_RESP,
-    NACK_PENDING_EMG_ACK
+    NACK_PENDING_EMG_ACK,
+    NACK_PENDING_RANGEN_RESP
 } NACK_PendingType_t;
 
 typedef struct {
@@ -489,6 +495,69 @@ static uint16_t gNackEmgCooldown_10ms[2];
 static NACK_PendingResponse_t gNackPending;
 static uint16_t gNackEmergencyAlert_10ms;
 static bool gNackEmergencySound;
+static uint16_t gAutoTxGuard_10ms;
+static uint16_t gBeaconCountdown_10ms[2];
+static uint8_t gBeaconModeSeen[2] = {0xFFu, 0xFFu};
+static uint8_t gBeaconChannelSeen[2] = {0xFFu, 0xFFu};
+static uint16_t gRangeNCountdown_10ms[2];
+static uint8_t gRangeNChannelSeen[2] = {0xFFu, 0xFFu};
+static uint8_t gRangeNModeSeen[2] = {0xFFu, 0xFFu};
+static uint16_t gRangeNRetryWindow_10ms[2];
+static uint16_t gRangeNRetryDelay_10ms[2];
+RangeN_Peer_t gRangeNPeers[4];
+bool gRangeNView;
+uint16_t gRangeNLastPing_500ms;
+uint16_t gRangeNViewTick_500ms;
+uint16_t gRangeNViewCountdown_500ms;
+static uint8_t gRangeNLostBeepStage;
+static bool gRangeNAgeHalfSecond;
+
+static void RANGEN_ResetTimer(uint8_t vfo)
+{
+    gRangeNCountdown_10ms[vfo] = SQLACK_RandomDelay(5000u, 6500u);
+    gRangeNRetryWindow_10ms[vfo] = 0;
+    gRangeNRetryDelay_10ms[vfo] = 0;
+}
+
+void RANGEN_EnterView(void)
+{
+    gRangeNView = true;
+    gRangeNViewCountdown_500ms = 0; // Persistent until EXIT/EMG/OFF
+    gUpdateDisplay = true;
+}
+
+void RANGEN_LeaveView(void)
+{
+    gRangeNView = false;
+    gUpdateDisplay = true;
+}
+
+static void RANGEN_UpdatePeer(const char id[4], uint8_t snr)
+{
+    unsigned int slot = 4;
+    unsigned int oldest = 0;
+    for (unsigned int i = 0; i < 4; i++) {
+        if (gRangeNPeers[i].present && memcmp(gRangeNPeers[i].id, id, 4) == 0) {
+            slot = i;
+            break;
+        }
+        if (!gRangeNPeers[i].present && slot == 4)
+            slot = i;
+        if (gRangeNPeers[i].age_seconds > gRangeNPeers[oldest].age_seconds)
+            oldest = i;
+    }
+    if (slot == 4)
+        slot = oldest;
+    memcpy(gRangeNPeers[slot].id, id, 4);
+    gRangeNPeers[slot].id[4] = '\0';
+    gRangeNPeers[slot].snr = snr > 40 ? 40 : snr;
+    gRangeNPeers[slot].age_seconds = 0;
+    gRangeNPeers[slot].present = true;
+    gRangeNPeers[slot].lost = false;
+    gRangeNLastPing_500ms = 0;
+    gUpdateDisplay = true;
+}
+
 
 static bool NACK_IsValidIdChar(const char c)
 {
@@ -545,7 +614,8 @@ static bool NACK_SendPacketOnVfo(const uint8_t vfo, uint8_t type,
                                  const char target[4], uint8_t value,
                                  uint8_t expectedChannel)
 {
-    if (vfo > 1 || gMonitor || gPttIsPressed || gCurrentFunction == FUNCTION_TRANSMIT)
+    if (vfo > 1 || gMonitor || gPttIsPressed ||
+        gCurrentFunction == FUNCTION_TRANSMIT || gAutoTxGuard_10ms > 0)
         return false;
 
     VFO_Info_t *pVfo = &gEeprom.VfoInfo[vfo];
@@ -567,12 +637,15 @@ static bool NACK_SendPacketOnVfo(const uint8_t vfo, uint8_t type,
 
     uint8_t packet[NACK_PACKET_BYTES];
     NACK_BuildPacket(packet, type, target, value);
-    SYSTEM_DelayMs(60);
+    // Hold RF carrier first; give the other radio time to detect carrier
+    // before the short FSK frame starts. Do not change the FSK baud rate.
+    SYSTEM_DelayMs(NACK_FSK_CARRIER_LEAD_MS);
     BK4819_SendNackFSK(packet);
     RADIO_SetupRegisters(false);
     FUNCTION_Select(FUNCTION_FOREGROUND);
 
     gRxVfoIsActive = oldRxActive;
+    gAutoTxGuard_10ms = NACK_AUTO_TX_GUARD_10MS;
     gUpdateStatus = true;
     gUpdateDisplay = true;
     return true;
@@ -581,16 +654,22 @@ static bool NACK_SendPacketOnVfo(const uint8_t vfo, uint8_t type,
 static void NACK_QueueResponse(NACK_PendingType_t type, uint8_t vfo,
                                const char target[4], uint8_t value)
 {
-    if (gNackPending.type != NACK_PENDING_NONE)
-        return;
+    if (gNackPending.type != NACK_PENDING_NONE) {
+        // Emergency ACK has priority over an SNR response.
+        if ((type != NACK_PENDING_EMG_ACK &&
+             !(type == NACK_PENDING_SNR_RESP && gNackPending.type == NACK_PENDING_RANGEN_RESP)) ||
+            gNackPending.type == NACK_PENDING_EMG_ACK)
+            return;
+    }
 
     gNackPending.type = type;
     gNackPending.vfo = vfo;
     gNackPending.channel = gEeprom.VfoInfo[vfo].CHANNEL_SAVE;
     gNackPending.value = value;
     memcpy(gNackPending.target, target, 4);
-    gNackPending.delay_10ms = SQLACK_RandomDelay(SQLACK_INITIAL_MIN_10MS,
-                                                 SQLACK_INITIAL_MAX_10MS);
+    gNackPending.delay_10ms = (type == NACK_PENDING_RANGEN_RESP) ?
+        SQLACK_RandomDelay(25u, 175u) :
+        SQLACK_RandomDelay(SQLACK_INITIAL_MIN_10MS, SQLACK_INITIAL_MAX_10MS);
     gNackPending.window_10ms = NACK_RESPONSE_WINDOW_10MS;
 }
 
@@ -674,7 +753,23 @@ static void NACK_ProcessReceivedPacket(void)
                 UI_MAIN_NotifySnr(source, packet[10] > 40 ? 40 : packet[10]);
             break;
 
+        case NACK_TYPE_RANGEN_HELLO:
+            if (gEeprom.VfoInfo[vfo].RANGEN_MODE) {
+                RANGEN_UpdatePeer(source, gNackRxSnr);
+                RANGEN_ResetTimer(vfo);
+                NACK_QueueResponse(NACK_PENDING_RANGEN_RESP, vfo, source, gNackRxSnr);
+            }
+            break;
+
+        case NACK_TYPE_RANGEN_RESP:
+            if (gEeprom.VfoInfo[vfo].RANGEN_MODE) {
+                RANGEN_UpdatePeer(source, packet[10]);
+                RANGEN_ResetTimer(vfo);
+            }
+            break;
+
         case NACK_TYPE_EMERGENCY:
+            RANGEN_LeaveView();
             UI_MAIN_NotifyEmergency(source);
             NACK_StartEmergencyAlert();
             // MUTE means never acknowledge, including emergency.
@@ -1090,6 +1185,56 @@ static bool SQLACK_SendBeep(const uint8_t vfo)
 
 
 
+static uint16_t BEACON_GetPeriod10ms(const uint8_t mode)
+{
+    switch (mode) {
+        case BEACON_3S:  return 300u;
+        case BEACON_15S: return 1500u;
+        case BEACON_30S: return 3000u;
+        default:         return 0u;
+    }
+}
+
+static bool BEACON_SendBeep(const uint8_t vfo)
+{
+    if (vfo > 1 || gAutoTxGuard_10ms > 0)
+        return false;
+
+    VFO_Info_t *pVfo = &gEeprom.VfoInfo[vfo];
+    if (pVfo->BEACON_MODE == BEACON_OFF || pVfo->RANGEN_MODE ||
+        (pVfo->SQL_ACK_MODE != SQL_ACK_OFF && pVfo->SQL_ACK_MODE != SQL_ACK_MUTE))
+        return false;
+    if (gEeprom.SQUELCH_LEVEL == 0 || gMonitor || gPttIsPressed ||
+        gCurrentFunction == FUNCTION_TRANSMIT || gScanStateDir != SCAN_OFF)
+        return false;
+    if ((gEeprom.RX_VFO & 1u) != vfo || g_SquelchLost)
+        return false;
+
+    gRxVfo = pVfo;
+    const bool oldRxActive = gRxVfoIsActive;
+    gRxVfoIsActive = true;
+    FUNCTION_Select(FUNCTION_FOREGROUND);
+    RADIO_PrepareTX();
+    if (gCurrentFunction != FUNCTION_TRANSMIT) {
+        gRxVfoIsActive = oldRxActive;
+        return false;
+    }
+
+    SYSTEM_DelayMs(60);
+    BK4819_TransmitTone(false, 1000);
+    BK4819_ExitTxMute();
+    SYSTEM_DelayMs(BEACON_BEEP_MS);
+    BK4819_EnterTxMute();
+
+    RADIO_SetupRegisters(false);
+    FUNCTION_Select(FUNCTION_FOREGROUND);
+    gRxVfoIsActive = oldRxActive;
+    gAutoTxGuard_10ms = NACK_AUTO_TX_GUARD_10MS;
+    gUpdateStatus = true;
+    gUpdateDisplay = true;
+    return true;
+}
+
 static bool SQLACK_SendId(const uint8_t vfo)
 {
     if (vfo > 1) return false;
@@ -1111,11 +1256,14 @@ static bool SQLACK_SendId(const uint8_t vfo)
 
     uint8_t packet[NACK_PACKET_BYTES];
     NACK_BuildPacket(packet, NACK_TYPE_ACK_ID, NULL, 0);
-    SYSTEM_DelayMs(60);
+    // Hold RF carrier first; give the other radio time to detect carrier
+    // before the short FSK frame starts. Do not change the FSK baud rate.
+    SYSTEM_DelayMs(NACK_FSK_CARRIER_LEAD_MS);
     BK4819_SendNackFSK(packet);
     RADIO_SetupRegisters(false);
     FUNCTION_Select(FUNCTION_FOREGROUND);
     gRxVfoIsActive = oldRxActive;
+    gAutoTxGuard_10ms = NACK_AUTO_TX_GUARD_10MS;
     gUpdateStatus = true;
     gUpdateDisplay = true;
     return true;
@@ -4642,6 +4790,9 @@ void APP_TimeSlice10ms(void)
 
     gFlashLightBlinkCounter++;
 
+    if (gAutoTxGuard_10ms > 0)
+        gAutoTxGuard_10ms--;
+
     // Nallo digital-protocol timers
     for (uint8_t i = 0; i < 2; i++) {
         if (gNackEmgCooldown_10ms[i] > 0)
@@ -4666,9 +4817,13 @@ void APP_TimeSlice10ms(void)
                            gPttIsPressed || gCurrentFunction == FUNCTION_TRANSMIT ||
                            gScanStateDir != SCAN_OFF) {
                     gNackPending.delay_10ms = SQLACK_RandomDelay(0, SQLACK_RETRY_MAX_10MS);
+                } else if (gAutoTxGuard_10ms > 0) {
+                    gNackPending.delay_10ms = 1;
                 } else {
                     const uint8_t type = (gNackPending.type == NACK_PENDING_SNR_RESP) ?
-                                         NACK_TYPE_SNR_RESP : NACK_TYPE_EMERGENCY_ACK;
+                                         NACK_TYPE_SNR_RESP :
+                                         (gNackPending.type == NACK_PENDING_RANGEN_RESP ?
+                                          NACK_TYPE_RANGEN_RESP : NACK_TYPE_EMERGENCY_ACK);
                     if (NACK_SendPacketOnVfo(vfo, type, gNackPending.target,
                                              gNackPending.value, gNackPending.channel)) {
                         if (gNackPending.type == NACK_PENDING_EMG_ACK)
@@ -4948,6 +5103,12 @@ for (uint8_t vfo = 0; vfo < 2; vfo++)
 
 
 
+    if (gNackPending.type != NACK_PENDING_NONE || gAutoTxGuard_10ms > 0)
+    {
+        ack->delay_10ms = SQLACK_RandomDelay(0, SQLACK_RETRY_MAX_10MS);
+        continue;
+    }
+
     const bool canSend =
 
 
@@ -5025,6 +5186,8 @@ for (uint8_t vfo = 0; vfo < 2; vfo++)
 
 
 
+
+        gAutoTxGuard_10ms = NACK_AUTO_TX_GUARD_10MS;
         ack->pending = false;
 
 
@@ -5101,6 +5264,96 @@ for (uint8_t vfo = 0; vfo < 2; vfo++)
 
 
 
+
+
+    // RangeN: jittered periodic discovery. Skip a ping after 5 s of busy channel.
+    for (uint8_t vfo = 0; vfo < 2; vfo++) {
+        VFO_Info_t *pv = &gEeprom.VfoInfo[vfo];
+        const uint8_t mode = pv->RANGEN_MODE;
+        const uint8_t channel = pv->CHANNEL_SAVE;
+        if (gRangeNModeSeen[vfo] != mode || gRangeNChannelSeen[vfo] != channel) {
+            const bool newlyEnabled = mode && gRangeNModeSeen[vfo] != 1u;
+            gRangeNModeSeen[vfo] = mode;
+            gRangeNChannelSeen[vfo] = channel;
+            RANGEN_ResetTimer(vfo);
+            if (newlyEnabled) {
+                // A newly enabled network always starts with an empty peer list.
+                memset(gRangeNPeers, 0, sizeof(gRangeNPeers));
+                gRangeNLastPing_500ms = 0;
+                gRangeNLostBeepStage = 0;
+                gUpdateDisplay = true;
+            }
+            if (!mode && gRangeNView)
+                RANGEN_LeaveView();
+        }
+        if (!mode)
+            continue;
+        if (gRangeNCountdown_10ms[vfo] > 0) {
+            gRangeNCountdown_10ms[vfo]--;
+            continue;
+        }
+        if (gRangeNRetryWindow_10ms[vfo] == 0)
+            gRangeNRetryWindow_10ms[vfo] = 500u;
+        if (--gRangeNRetryWindow_10ms[vfo] == 0) {
+            RANGEN_ResetTimer(vfo);
+            continue;
+        }
+        if (gRangeNRetryDelay_10ms[vfo] > 0) {
+            gRangeNRetryDelay_10ms[vfo]--;
+            continue;
+        }
+        bool pendingAck = gNackPending.type != NACK_PENDING_NONE;
+        for (uint8_t i = 0; i < 2; i++)
+            pendingAck |= gSqlAck[i].pending;
+        if (!pendingAck && !g_SquelchLost && !gMonitor &&
+            !gPttIsPressed && gCurrentFunction != FUNCTION_TRANSMIT &&
+            (gEeprom.RX_VFO & 1u) == vfo && gAutoTxGuard_10ms == 0 &&
+            gScanStateDir == SCAN_OFF &&
+            NACK_SendPacketOnVfo(vfo, NACK_TYPE_RANGEN_HELLO, NULL, 0, channel)) {
+            RANGEN_ResetTimer(vfo);
+        } else {
+            gRangeNRetryDelay_10ms[vfo] = SQLACK_RandomDelay(1u, 50u);
+        }
+    }
+
+    // ------------------------------------------------
+    // Beacon - lowest automatic TX priority
+    // ------------------------------------------------
+    for (uint8_t vfo = 0; vfo < 2; vfo++) {
+        VFO_Info_t *pVfo = &gEeprom.VfoInfo[vfo];
+        const uint8_t mode = pVfo->BEACON_MODE;
+        const uint8_t channel = pVfo->CHANNEL_SAVE;
+        const uint16_t period = BEACON_GetPeriod10ms(mode);
+
+        if (gBeaconModeSeen[vfo] != mode || gBeaconChannelSeen[vfo] != channel) {
+            gBeaconModeSeen[vfo] = mode;
+            gBeaconChannelSeen[vfo] = channel;
+            gBeaconCountdown_10ms[vfo] = period;
+        }
+
+        if (period == 0 || pVfo->RANGEN_MODE) {
+            gBeaconCountdown_10ms[vfo] = 0;
+            continue;
+        }
+
+        if (gBeaconCountdown_10ms[vfo] > 0) {
+            gBeaconCountdown_10ms[vfo]--;
+            continue;
+        }
+
+        bool sqlAckPending = false;
+        for (uint8_t i = 0; i < 2; i++)
+            if (gSqlAck[i].pending)
+                sqlAckPending = true;
+
+        // Beacon is deliberately expendable. If anything more important is
+        // pending, skip this beacon instead of queuing transmissions.
+        if (gNackPending.type == NACK_PENDING_NONE &&
+            !sqlAckPending && gAutoTxGuard_10ms == 0)
+            (void)BEACON_SendBeep(vfo);
+
+        gBeaconCountdown_10ms[vfo] = period;
+    }
 
 
 #ifdef ENABLE_BOOT_BEEPS
@@ -5670,10 +5923,61 @@ void cancelUserInputModes(void)
 
 
 void APP_TimeSlice500ms(void)
-
-
-
 {
+    gRangeNViewTick_500ms++;
+    if (gRangeNLastPing_500ms < 65535u)
+        gRangeNLastPing_500ms++;
+    if (gRangeNView && gCurrentFunction != FUNCTION_TRANSMIT && !gPttIsPressed)
+        gUpdateDisplay = true;
+    gRangeNAgeHalfSecond = !gRangeNAgeHalfSecond;
+    // Count LOST only while the channel offers a real reception opportunity.
+    const bool rangeChannelFree = !g_SquelchLost && !gMonitor &&
+        !gPttIsPressed && gCurrentFunction != FUNCTION_TRANSMIT;
+    for (uint8_t i = 0; i < 4; i++) {
+        RangeN_Peer_t *peer = &gRangeNPeers[i];
+        if (!peer->present || peer->lost)
+            continue;
+        // One-second granularity: the 500ms ticker updates peer ages on even ticks.
+        if (rangeChannelFree && gRangeNAgeHalfSecond && peer->age_seconds < 255u)
+            peer->age_seconds++;
+        if (peer->age_seconds >= 80u) {
+            peer->lost = true;
+            // Queue one local 3-short + 1-long warning.  Do not overwrite
+            // gBeepToPlay twice in the same 500 ms tick (the old bug).
+            if (gRangeNLostBeepStage == 0u)
+                gRangeNLostBeepStage = 2u;
+            gUpdateDisplay = true;
+        }
+    }
+    // Play each half of the LOST alert separately.  The ordinary beep queue
+    // has only one slot, so pushing the long beep immediately would replace
+    // the triple short beep before the audio routine gets to play it.
+    // Postpone the warning during RF activity to avoid losing either half.
+    if (gRangeNLostBeepStage != 0u && rangeChannelFree &&
+        gCurrentFunction != FUNCTION_MONITOR &&
+        gBeepToPlay == BEEP_NONE &&
+        gNackEmergencyAlert_10ms == 0u) {
+        // RangeN is an overlay: a previous FSK/RX event may leave the
+        // state as RECEIVE after squelch has closed. AUDIO_PlayBeep()
+        // silently refuses to play in RECEIVE mode, so normalize the
+        // idle receiver state before consuming either beep stage.
+        // Never do this while the squelch is open, PTT is down or TX.
+        if (gCurrentFunction == FUNCTION_RECEIVE ||
+            gCurrentFunction == FUNCTION_INCOMING)
+            FUNCTION_Select(FUNCTION_FOREGROUND);
+
+        if (gCurrentFunction == FUNCTION_FOREGROUND ||
+            gCurrentFunction == FUNCTION_POWER_SAVE) {
+            if (gRangeNLostBeepStage == 2u) {
+                gRangeNLostBeepStage = 1u;
+                AUDIO_PlayBeep(BEEP_880HZ_60MS_TRIPLE_BEEP);
+            } else {
+                gRangeNLostBeepStage = 0u;
+                AUDIO_PlayBeep(BEEP_880HZ_500MS);
+            }
+        }
+    }
+
 
 
 

@@ -126,6 +126,14 @@ enum SQL_ACK_Mode_t {
 };
 typedef enum SQL_ACK_Mode_t SQL_ACK_Mode_t;
 
+enum BEACON_Mode_t {
+    BEACON_OFF = 0,
+    BEACON_3S,
+    BEACON_15S,
+    BEACON_30S
+};
+typedef enum BEACON_Mode_t BEACON_Mode_t;
+
 enum EMG_RX_Mode_t {
     EMG_RX_TEXT = 0,
     EMG_RX_LIGHT,

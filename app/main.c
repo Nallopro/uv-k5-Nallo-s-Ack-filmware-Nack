@@ -79,6 +79,7 @@
 
 #include "settings.h"
 
+#include "ui/main.h"
 #include "ui/inputbox.h"
 
 #include "ui/ui.h"
@@ -1319,6 +1320,20 @@ void MAIN_ProcessKeys(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
 //  }
 
 
+
+    if (Key == KEY_0 && bKeyPressed && bKeyHeld &&
+        gEeprom.VfoInfo[gEeprom.TX_VFO & 1u].RANGEN_MODE) {
+        RANGEN_EnterView();
+        return;
+    }
+    if (gRangeNView) {
+        if (Key == KEY_EXIT && bKeyPressed) {
+            RANGEN_LeaveView();
+            return;
+        }
+        if (Key != KEY_PTT)
+            return;
+    }
 
     switch (Key) {
 

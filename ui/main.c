@@ -658,9 +658,90 @@ void UI_MAIN_TimeSlice500ms(void)
 
 
 
-void UI_DisplayMain(void)
-
+static void RANGEN_DrawView(void)
 {
+    char text[28];
+    UI_DisplayClear();
+    // Top row is reserved for any 10-second ACK/SNR notification.
+    if (gNackUi[0].ttl_500ms > 0) {
+        if (gNackUi[0].type == NACK_UI_ACK)
+            sprintf(text, "Acked:%s", gNackUi[0].id);
+        else if (gNackUi[0].type == NACK_UI_SNR)
+            sprintf(text, "SNR %s +%02u", gNackUi[0].id, gNackUi[0].value);
+        else
+            text[0] = '\0';
+        if (text[0])
+            UI_PrintStringSmallBold(text, 0, 0, 0);
+    }
+    for (uint8_t i = 0; i < 4; i++) {
+        const RangeN_Peer_t *peer = &gRangeNPeers[i];
+        if (!peer->present)
+            continue;
+        if (peer->lost)
+            sprintf(text, "%s LOST", peer->id);
+        else
+            sprintf(text, "%s +%02u", peer->id, peer->snr);
+        UI_PrintStringSmallNormal(text, (i & 1u) ? 65u : 2u, 0, (i >> 1) + 1u);
+    }
+    sprintf(text, "Last ping: %03us", (unsigned)(gRangeNLastPing_500ms / 2u) % 1000u);
+    UI_PrintStringSmallNormal(text, 2, 0, 3);
+    for (uint8_t v = 0; v < 2; v++) {
+        const VFO_Info_t *info = &gEeprom.VfoInfo[v];
+        const uint8_t line = v ? 6u : 5u;
+        const bool receiving = g_SquelchLost && gCurrentFunction == FUNCTION_RECEIVE;
+        const bool selected = ((receiving ? gEeprom.RX_VFO : gEeprom.TX_VFO) & 1u) == v;
+        char name[18] = {0};
+        const bool showName = gEeprom.CHANNEL_DISPLAY_MODE == MDF_NAME ||
+            (gEeprom.CHANNEL_DISPLAY_MODE == MDF_NAME_FREQ &&
+             ((gRangeNViewTick_500ms / 10u) & 1u) == 0u);
+        if (showName && !IS_FREQ_CHANNEL(info->CHANNEL_SAVE))
+            SETTINGS_FetchChannelName(name, info->CHANNEL_SAVE);
+        if (!name[0])
+            sprintf(name, "%u.%05u", (unsigned)(info->pRX->Frequency / 100000u),
+                    (unsigned)(info->pRX->Frequency % 100000u));
+
+        // Indicators stay right-aligned; the name/frequency is clipped to fit.
+        char flags[12];
+        unsigned int k = 0;
+        if (info->TX_OFFSET_FREQUENCY_DIRECTION == 1u) flags[k++] = '+';
+        else if (info->TX_OFFSET_FREQUENCY_DIRECTION == 2u) flags[k++] = '-';
+        if (info->freq_config_RX.CodeType >= 2u || info->freq_config_TX.CodeType >= 2u) {
+            flags[k++] = 'D'; flags[k++] = 'C';
+        } else if (info->freq_config_RX.CodeType == 1u || info->freq_config_TX.CodeType == 1u) {
+            flags[k++] = 'C'; flags[k++] = 'T';
+        }
+        if (info->CHANNEL_BANDWIDTH == BANDWIDTH_NARROW) flags[k++] = 'N';
+        flags[k++] = info->Modulation == MODULATION_FM ? 'F' :
+                     info->Modulation == MODULATION_AM ? 'A' : 'S';
+        flags[k++] = info->OUTPUT_POWER == OUTPUT_POWER_HIGH ? 'H' :
+                     info->OUTPUT_POWER == OUTPUT_POWER_MID ? 'M' : 'L';
+        flags[k] = '\0';
+        // The small font is 6px plus 1px spacing, so reserve 7px per glyph.
+        const unsigned int flagsX = 128u - (k * 7u);
+        const unsigned int maxNameChars = flagsX > 21u ? (flagsX - 21u) / 7u : 0u;
+        if (maxNameChars < sizeof(name))
+            name[maxNameChars] = '\0';
+        sprintf(text, "%c %s", selected ? ' ' : (v ? 'B' : 'A'), name);
+        UI_PrintStringSmallNormal(text, 0, 0, line);
+        if (selected && (!receiving || ((gRangeNViewTick_500ms & 1u) == 0u))) {
+            // Four-column filled triangle, replacing A or B.
+            gFrameBuffer[line][1] = 0x7Fu;
+            gFrameBuffer[line][2] = 0x3Eu;
+            gFrameBuffer[line][3] = 0x1Cu;
+            gFrameBuffer[line][4] = 0x08u;
+        }
+        UI_PrintStringSmallNormal(flags, (uint8_t)flagsX, 0, line);
+    }
+    ST7565_BlitFullScreen();
+}
+
+void UI_DisplayMain(void)
+{
+    if (gRangeNView) {
+        RANGEN_DrawView();
+        return;
+    }
+
 
     char               String[22];
 

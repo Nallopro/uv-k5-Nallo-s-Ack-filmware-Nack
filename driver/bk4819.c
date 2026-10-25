@@ -1072,7 +1072,7 @@ void BK4819_TurnsOffTones_TurnsOnRX(void)
 void BK4819_ResetFSK(void)
 {
 	BK4819_WriteRegister(BK4819_REG_3F, 0x0000);        // Disable interrupts
-	BK4819_WriteRegister(BK4819_REG_59, 0x0068);        // Sync length 4 bytes, 7 byte preamble
+	BK4819_WriteRegister(BK4819_REG_59, 0x00E8);        // Sync length 4 bytes, 7 byte preamble
 
 	SYSTEM_DelayMs(30);
 
@@ -1646,8 +1646,8 @@ void BK4819_SendFSKData(uint16_t *pData)
 	SYSTEM_DelayMs(20);
 
 	BK4819_WriteRegister(BK4819_REG_3F, BK4819_REG_3F_FSK_TX_FINISHED);
-	BK4819_WriteRegister(BK4819_REG_59, 0x8068);
-	BK4819_WriteRegister(BK4819_REG_59, 0x0068);
+	BK4819_WriteRegister(BK4819_REG_59, 0x80E8);
+	BK4819_WriteRegister(BK4819_REG_59, 0x00E8);
 
 	for (i = 0; i < 36; i++)
 		BK4819_WriteRegister(BK4819_REG_5F, pData[i]);
@@ -1677,7 +1677,7 @@ void BK4819_PrepareFSKReceive(void)
 	// Clear RX FIFO
 	// FSK Preamble Length 7 bytes
 	// FSK SyncLength Selection
-	BK4819_WriteRegister(BK4819_REG_59, 0x4068);
+	BK4819_WriteRegister(BK4819_REG_59, 0x40E8);
 
 	// Enable FSK Scramble
 	// Enable FSK RX
@@ -1687,7 +1687,7 @@ void BK4819_PrepareFSKReceive(void)
 }
 
 // ---------------------------------------------------------------------------
-// Nallo ACK-ID modem - 1200 bps 2FSK
+// Nallo ACK-ID modem - 1200 bps 2FSK, 15-byte preamble
 // ---------------------------------------------------------------------------
 static void BK4819_SetupNackFSKCommon(void)
 {
@@ -1703,8 +1703,8 @@ static void BK4819_SetupNackFSKCommon(void)
 void BK4819_SetupNackFSKReceive(void)
 {
 	BK4819_SetupNackFSKCommon();
-	BK4819_WriteRegister(BK4819_REG_59, 0x4068); // clear RX FIFO
-	BK4819_WriteRegister(BK4819_REG_59, 0x1068); // RX on, no scramble
+	BK4819_WriteRegister(BK4819_REG_59, 0x40E8); // clear RX FIFO
+	BK4819_WriteRegister(BK4819_REG_59, 0x10E8); // RX on, no scramble
 }
 
 void BK4819_SendNackFSK(const uint8_t data[14])
@@ -1717,21 +1717,23 @@ void BK4819_SendNackFSK(const uint8_t data[14])
 	BK4819_SetupNackFSKCommon();
 	BK4819_WriteRegister(BK4819_REG_02, 0);
 	BK4819_WriteRegister(BK4819_REG_3F, BK4819_REG_3F_FSK_TX_FINISHED);
-	BK4819_WriteRegister(BK4819_REG_59, 0x8068);
-	BK4819_WriteRegister(BK4819_REG_59, 0x0068);
+	BK4819_WriteRegister(BK4819_REG_59, 0x80E8);
+	BK4819_WriteRegister(BK4819_REG_59, 0x00E8);
 
 	for (unsigned int i = 0; i < 7; i++)
 		BK4819_WriteRegister(BK4819_REG_5F, words[i]);
 
 	SYSTEM_DelayMs(10);
-	BK4819_WriteRegister(BK4819_REG_59, 0x0868); // TX on, no scramble
+	BK4819_WriteRegister(BK4819_REG_59, 0x08E8); // TX on, no scramble
 
-	uint8_t timeout = 50;
+	// Longer timeout for the 15-byte preamble and 14-byte packet at 1200 bps.
+	// This is a maximum only: transmission ends earlier on TX_FINISHED.
+	uint8_t timeout = 150;
 	while (timeout-- && (BK4819_ReadRegister(BK4819_REG_0C) & 1u) == 0)
 		SYSTEM_DelayMs(5);
 
 	BK4819_WriteRegister(BK4819_REG_02, 0);
-	BK4819_WriteRegister(BK4819_REG_59, 0x0068);
+	BK4819_WriteRegister(BK4819_REG_59, 0x00E8);
 	BK4819_WriteRegister(BK4819_REG_70, 0x0000);
 	BK4819_WriteRegister(BK4819_REG_58, 0x0000);
 }
@@ -1791,8 +1793,8 @@ void BK4819_PlayRogerMDC(void)
 		{ BK4819_REG_72, 0x3065 },	// Set Tone-2 to 1200Hz
 		{ BK4819_REG_70, 0x00E0 },	// Enable Tone-2 and Set Tone2 Gain
 		{ BK4819_REG_5D, 0x0D00 },	// Set FSK data length to 13 bytes
-		{ BK4819_REG_59, 0x8068 },	// 4 byte sync length, 6 byte preamble, clear TX FIFO
-		{ BK4819_REG_59, 0x0068 },	// Same, but clear TX FIFO is now unset (clearing done)
+		{ BK4819_REG_59, 0x80E8 },	// 4 byte sync length, 6 byte preamble, clear TX FIFO
+		{ BK4819_REG_59, 0x00E8 },	// Same, but clear TX FIFO is now unset (clearing done)
 		{ BK4819_REG_5A, 0x5555 },	// First two sync bytes
 		{ BK4819_REG_5B, 0x55AA },	// End of sync bytes. Total 4 bytes: 555555aa
 		{ BK4819_REG_5C, 0xAA30 },	// Disable CRC
@@ -1812,12 +1814,12 @@ void BK4819_PlayRogerMDC(void)
 	SYSTEM_DelayMs(20);
 
 	// 4 sync bytes, 6 byte preamble, Enable FSK TX
-	BK4819_WriteRegister(BK4819_REG_59, 0x0868);
+	BK4819_WriteRegister(BK4819_REG_59, 0x08E8);
 
 	SYSTEM_DelayMs(180);
 
 	// Stop FSK TX, reset Tone-2, disable FSK
-	BK4819_WriteRegister(BK4819_REG_59, 0x0068);
+	BK4819_WriteRegister(BK4819_REG_59, 0x00E8);
 	BK4819_WriteRegister(BK4819_REG_70, 0x0000);
 	BK4819_WriteRegister(BK4819_REG_58, 0x0000);
 }

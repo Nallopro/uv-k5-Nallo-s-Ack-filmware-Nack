@@ -296,6 +296,19 @@ int MENU_GetLimits(uint8_t menu_id, int32_t *pMin, int32_t *pMax)
 
     break;
 
+        case MENU_RANGEN:
+    *pMin = 0;
+    *pMax = 1;
+    break;
+
+        case MENU_BEACON:
+
+    *pMin = 0;
+
+    *pMax = 3;
+
+    break;
+
 
 
         case MENU_F_LOCK:
@@ -1026,6 +1039,26 @@ void MENU_AcceptSetting(void)
             gEeprom.EMG_RX_MODE = gSubMenuSelection;
             break;
 
+        case MENU_RANGEN:
+            gTxVfo->RANGEN_MODE = gSubMenuSelection;
+            if (gTxVfo->RANGEN_MODE) {
+                if (gTxVfo->SQL_ACK_MODE != SQL_ACK_MUTE)
+                    gTxVfo->SQL_ACK_MODE = SQL_ACK_OFF;
+                gTxVfo->BEACON_MODE = BEACON_OFF;
+            }
+            gRequestSaveChannel = 2; // Save mode bits for both memory and VFO channels
+            return;
+
+        case MENU_BEACON:
+            gTxVfo->BEACON_MODE = gSubMenuSelection;
+            if (gTxVfo->BEACON_MODE != BEACON_OFF) {
+                if (gTxVfo->SQL_ACK_MODE != SQL_ACK_MUTE)
+                    gTxVfo->SQL_ACK_MODE = SQL_ACK_OFF;
+                gTxVfo->RANGEN_MODE = 0;
+            }
+            gRequestSaveChannel = 2; // Save mode bits for both memory and VFO channels
+            return;
+
         case MENU_SAVE:
 
             gEeprom.BATTERY_SAVE = gSubMenuSelection;
@@ -1392,9 +1425,15 @@ void MENU_AcceptSetting(void)
 
         gTxVfo->SQL_ACK_MODE = SQL_ACK_ID;
 
+    // Beacon y SqlAck normal son mutuamente excluyentes.
+    // OFF puede coexistir porque precisamente significa SqlAck apagado.
+    if (gTxVfo->SQL_ACK_MODE == SQL_ACK_BEEP ||
+        gTxVfo->SQL_ACK_MODE == SQL_ACK_ID) {
+        gTxVfo->BEACON_MODE = BEACON_OFF;
+        gTxVfo->RANGEN_MODE = 0;
+    }
 
-
-    gRequestSaveChannel = 1;
+    gRequestSaveChannel = 2; // Save mode bits for both memory and VFO channels
 
     return;
 
@@ -2269,6 +2308,14 @@ void MENU_ShowCurrentSetting(void)
     case MENU_EMG_RX:
 
     gSubMenuSelection = gEeprom.EMG_RX_MODE;
+    break;
+
+    case MENU_RANGEN:
+    gSubMenuSelection = gTxVfo->RANGEN_MODE;
+    break;
+
+    case MENU_BEACON:
+    gSubMenuSelection = gTxVfo->BEACON_MODE;
     break;
 
     case MENU_SQLACK:

@@ -289,6 +289,8 @@ void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure
     pVfo->OUTPUT_POWER      = OUTPUT_POWER_LOW;
     pVfo->BUSY_CHANNEL_LOCK = false;
     pVfo->SQL_ACK_MODE      = SQL_ACK_OFF;
+    pVfo->BEACON_MODE       = BEACON_OFF;
+    pVfo->RANGEN_MODE       = 0;
 }
 else
 {
@@ -307,6 +309,8 @@ else
 			pVfo->DTMF_DECODING_ENABLE = false;
 #endif
 			pVfo->DTMF_PTT_ID_TX_MODE  = PTT_ID_OFF;
+            pVfo->BEACON_MODE          = BEACON_OFF;
+            pVfo->RANGEN_MODE          = 0;
 		}
 		else
 		{
@@ -315,7 +319,29 @@ else
 #endif
 			uint8_t pttId = ((data[5] >> 1) & 7u);
 			pVfo->DTMF_PTT_ID_TX_MODE  = pttId < ARRAY_SIZE(gSubMenu_PTT_ID) ? pttId : PTT_ID_OFF;
+            // Only the new Nallo EEPROM format may activate automatic TX.
+            // Older firmware left these bits unspecified, which could look
+            // like BEACON_3S even when Beacon was never enabled by the user.
+            if (data[4] != 0xFFu &&
+                (data[4] & 0x80u) != 0u &&
+                (data[5] & 0x80u) != 0u) {
+                pVfo->BEACON_MODE = ((data[5] >> 4) & 3u);
+                pVfo->RANGEN_MODE = ((data[5] >> 6) & 1u);
+            } else {
+                pVfo->BEACON_MODE = BEACON_OFF;
+                pVfo->RANGEN_MODE = 0;
+            }
 		}
+
+        // Beacon and normal SqlAck are mutually exclusive.
+        if (pVfo->BEACON_MODE != BEACON_OFF &&
+            pVfo->SQL_ACK_MODE != SQL_ACK_MUTE)
+            pVfo->SQL_ACK_MODE = SQL_ACK_OFF;
+        if (pVfo->RANGEN_MODE) {
+            pVfo->BEACON_MODE = BEACON_OFF;
+            if (pVfo->SQL_ACK_MODE != SQL_ACK_MUTE)
+                pVfo->SQL_ACK_MODE = SQL_ACK_OFF;
+        }
 
 		// ***************
 

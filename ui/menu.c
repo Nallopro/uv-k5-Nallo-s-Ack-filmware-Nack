@@ -123,6 +123,8 @@ const t_menu_item MenuList[] =
 
 {"ID",     VOICE_ID_INVALID,                       MENU_ACK_ID        },
 {"SqlAck", VOICE_ID_INVALID,                       MENU_SQLACK        },
+{"Beacon", VOICE_ID_INVALID,                       MENU_BEACON        },
+{"RangeN", VOICE_ID_INVALID,                       MENU_RANGEN        },
 {"EmgRx",  VOICE_ID_INVALID,                       MENU_EMG_RX        },
 
 // hidden menu items from here on
@@ -267,6 +269,14 @@ const char gSubMenu_SQLACK[4][5] =
     "OFF",
     "BEEP",
     "ID"
+};
+
+const char gSubMenu_BEACON[4][5] =
+{
+    "OFF",
+    "3s",
+    "15s",
+    "30s"
 };
 
 const char gSubMenu_EMG_RX[4][6] =
@@ -796,6 +806,13 @@ void UI_DisplayMenu(void)
 	case MENU_SQLACK:
 	strcpy(String, gSubMenu_SQLACK[gSubMenuSelection]);
 	break;
+
+    case MENU_RANGEN:
+    strcpy(String, gSubMenu_OFF_ON[gSubMenuSelection]);
+    break;
+    case MENU_BEACON:
+    strcpy(String, gSubMenu_BEACON[gSubMenuSelection]);
+    break;
 
 	case MENU_EMG_RX:
 	strcpy(String, gSubMenu_EMG_RX[gSubMenuSelection]);

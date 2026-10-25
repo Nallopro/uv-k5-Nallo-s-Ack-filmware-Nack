@@ -41,6 +41,20 @@ extern const int8_t dBmCorrTable[7];
 
 void UI_DisplayAudioBar(void);
 void UI_MAIN_TimeSlice500ms(void);
+typedef struct {
+    char id[5];
+    uint8_t snr;
+    uint8_t age_seconds;
+    bool present;
+    bool lost;
+} RangeN_Peer_t;
+extern RangeN_Peer_t gRangeNPeers[4];
+extern bool gRangeNView;
+extern uint16_t gRangeNLastPing_500ms;
+extern uint16_t gRangeNViewTick_500ms;
+extern uint16_t gRangeNViewCountdown_500ms;
+void RANGEN_EnterView(void);
+void RANGEN_LeaveView(void);
 void UI_MAIN_NotifyAckId(const char id[4]);
 void UI_MAIN_NotifySnr(const char id[4], uint8_t snr);
 void UI_MAIN_NotifyEmergency(const char id[4]);

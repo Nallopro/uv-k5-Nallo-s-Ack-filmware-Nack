@@ -125,6 +125,8 @@ typedef struct VFO_Info_t
 
 	uint8_t        BUSY_CHANNEL_LOCK;
 	uint8_t        SQL_ACK_MODE;
+	uint8_t        BEACON_MODE;
+    uint8_t        RANGEN_MODE;
 
 	ModulationMode_t    Modulation;
 
