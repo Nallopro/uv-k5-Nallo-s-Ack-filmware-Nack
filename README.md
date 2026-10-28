@@ -1,5 +1,7 @@
 # Open re-implementation of the Quansheng UV-K5/K6/5R v2.1.27 firmware
 
+I added and change a few things fell free to read over the main features and manual.
+
 This repository is a merge of [OneOfEleven custom firmware](https://github.com/OneOfEleven/uv-k5-firmware-custom) with [fagci spectrum analizer](https://github.com/fagci/uv-k5-firmware-fagci-mod/tree/refactor) plus my few changes.<br>
 All is a cloned and customized version of DualTachyon's open firmware found [here](https://github.com/DualTachyon/uv-k5-firmware) ... a cool achievement !
 
@@ -8,20 +10,17 @@ All is a cloned and customized version of DualTachyon's open firmware found [her
 
 > [!WARNING]  
 > Use this firmware at your own risk (entirely). There is absolutely no guarantee that it will work in any way shape or form on your radio(s), it may even brick your radio(s), in which case, you'd need to buy another radio.
-Anyway, have fun.
+Anyway, have fun. I would also recommend clearing the eeprom :)
 
 ## Table of Contents
 
 * [Main Features](#main-features)
 * [Manual](#manual)
 * [Radio Performance](#radio-performance)
-* [User Customization](#user-customization)
-* [Compiler](#compiler)
 * [Building](#building)
 * [Credits](#credits)
 * [Other sources of information](#other-sources-of-information)
 * [License](#license)
-* [Example changes/updates](#example-changesupdates)
 
 ## Main features:
 * many of OneOfEleven mods:
@@ -74,70 +73,7 @@ On the other hand, FM RX audio will/should be fine.
 
 But, they are nice toys for the price, fun to play with.
 
-## User customization
 
-You can customize the firmware by enabling/disabling various compile options, this allows
-us to remove certain firmware features in order to make room in the flash for others.
-You'll find the options at the top of "Makefile" ('0' = disable, '1' = enable) ..
-
-
-|Build option | Description |
-| --- | ---- |
-|🧰 **STOCK QUANSHENG FEATURES**||
-| ENABLE_UART | without this you can't configure radio via PC ! |
-| ENABLE_AIRCOPY | easier to just enter frequency with butts |
-| ENABLE_FMRADIO | WBFM VHF broadcast band receiver |
-| ENABLE_NOAA | everything NOAA (only of any use in the USA) |
-| ENABLE_VOICE | want to hear voices ? |
-| ENABLE_VOX | |
-| ENABLE_ALARM | TX alarms |
-| ENABLE_TX1750 | side key 1750Hz TX tone (older style repeater access)|
-| ENABLE_PWRON_PASSWORD | power-on password stuff |
-| ENABLE_DTMF_CALLING | DTMF calling fuctionality, sending calls, receiving calls, group calls, contacts list etc. |
-| ENABLE_FLASHLIGHT | enable top flashlight LED (on, blink, SOS) |
-|🧰 **CUSTOM MODS**||
-| ENABLE_BIG_FREQ | big font frequencies (like original QS firmware) |
-| ENABLE_SMALL_BOLD | bold channel name/no. (when name + freq channel display mode) |
-| ENABLE_CUSTOM_MENU_LAYOUT | changes how the menu looks like |
-| ENABLE_KEEP_MEM_NAME | maintain channel name when (re)saving memory channel|
-| ENABLE_WIDE_RX | full 18MHz to 1300MHz RX (though front-end/PA not designed for full range)|
-| ENABLE_TX_WHEN_AM | allow TX (always FM) when RX is set to AM|
-| ENABLE_F_CAL_MENU | enable the radios hidden frequency calibration menu |
-| ENABLE_CTCSS_TAIL_PHASE_SHIFT | standard CTCSS tail phase shift rather than QS's own 55Hz tone method|
-| ENABLE_BOOT_BEEPS | gives user audio feedback on volume knob position at boot-up |
-| ENABLE_SHOW_CHARGE_LEVEL | show the charge level when the radio is on charge |
-| ENABLE_REVERSE_BAT_SYMBOL | mirror the battery symbol on the status bar (+ pole on the right) |
-| ENABLE_NO_CODE_SCAN_TIMEOUT | disable 32-sec CTCSS/DCS scan timeout (press exit butt instead of time-out to end scan) |
-| ENABLE_AM_FIX | dynamically adjust the front end gains when in AM mode to help prevent AM demodulator saturation, ignore the on-screen RSSI level (for now) |
-| ENABLE_AM_FIX_SHOW_DATA | show debug data for the AM fix |
-| ENABLE_SQUELCH_MORE_SENSITIVE | make squelch levels a little bit more sensitive - I plan to let user adjust the values themselves |
-| ENABLE_FASTER_CHANNEL_SCAN | increases the channel scan speed, but the squelch is also made more twitchy |
-| ENABLE_RSSI_BAR | enable a dBm/Sn RSSI bar graph level in place of the little antenna symbols |
-| ENABLE_AUDIO_BAR | experimental, display an audio bar level when TX'ing |
-| ENABLE_COPY_CHAN_TO_VFO | copy current channel settings into frequency mode. Long press `1 BAND` when in channel mode |
-| ENABLE_SPECTRUM | fagci spectrum analyzer, activated with `F` + `5 NOAA`|
-| ENABLE_REDUCE_LOW_MID_TX_POWER | makes medium and low power settings even lower |
-| ENABLE_BYP_RAW_DEMODULATORS | additional BYP (bypass?) and RAW demodulation options, proved not to be very useful, but it is there if you want to experiment |
-| ENABLE_BLMIN_TMP_OFF | additional function for configurable buttons that toggles `BLMin` on and off wihout saving it to the EEPROM |
-| ENABLE_SCAN_RANGES | scan range mode for frequency scanning, see wiki for instructions (radio operation -> frequency scanning) |
-|🧰 **DEBUGGING** ||
-| ENABLE_AM_FIX_SHOW_DATA| displays settings used by  AM-fix when AM transmission is received |
-| ENABLE_AGC_SHOW_DATA | displays AGC settings |
-| ENABLE_UART_RW_BK_REGS | adds 2 extra commands that allow to read and write BK4819 registers |
-|🧰 **COMPILER/LINKER OPTIONS**||
-| ENABLE_CLANG | **experimental, builds with clang instead of gcc (LTO will be disabled if you enable this) |
-| ENABLE_SWD | only needed if using CPU's SWD port (debugging/programming) |
-| ENABLE_OVERLAY | cpu FLASH stuff, not needed |
-| ENABLE_LTO | reduces size of compiled firmware but might break EEPROM reads (OVERLAY will be disabled if you enable this) |
-
-## Compiler
-
-arm-none-eabi GCC version 10.3.1 is recommended, which is the current version on Ubuntu 22.04.03 LTS.
-Other versions may generate a flash file that is too big.
-You can get an appropriate version from: https://developer.arm.com/downloads/-/gnu-rm
-
-clang may be used but isn't fully supported. Resulting binaries may also be bigger.
-You can get it from: https://releases.llvm.org/download.html
 
 ## Building
 
@@ -210,6 +146,8 @@ Many thanks to various people on Telegram for putting up with me during this eff
 * @d1ced95
 * and others I forget
 
+Nack was made by Nallo with help of chatgpt.
+
 ## Other sources of information
 
 [ludwich66 - Quansheng UV-K5 Wiki](https://github.com/ludwich66/Quansheng_UV-K5_Wiki/wiki)<br>
@@ -232,13 +170,6 @@ You may obtain a copy of the License at
     See the License for the specific language governing permissions and
     limitations under the License.
 
-## Example changes/updates
-
-<p float="left">
-  <img src="/images/image1.png" width=300 />
-  <img src="/images/image2.png" width=300 />
-  <img src="/images/image3.png" width=300 />
-</p>
 
 Video showing the AM fix working ..
 
