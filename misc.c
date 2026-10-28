@@ -26,8 +26,8 @@ const uint16_t    fm_restore_countdown_10ms        =  5000 / 10;   // 5 seconds
 
 const uint8_t     vfo_state_resume_countdown_500ms =  2500 / 500;  // 2.5 seconds
 
-const uint8_t     menu_timeout_500ms               =  20000 / 500;  // 20 seconds
-const uint16_t    menu_timeout_long_500ms          = 120000 / 500;  // 2 minutes
+const uint16_t     menu_timeout_500ms               = 180000 / 500;  // 3 min
+const uint16_t    menu_timeout_long_500ms          = 300000 / 500;  // 2 minutes
 
 const uint8_t     DTMF_RX_live_timeout_500ms       =  6000 / 500;  // 6 seconds live decoder on screen
 #ifdef ENABLE_DTMF_CALLING

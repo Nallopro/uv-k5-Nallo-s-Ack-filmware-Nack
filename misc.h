@@ -86,7 +86,7 @@ extern const uint16_t        fm_restore_countdown_10ms;
 
 extern const uint8_t        vfo_state_resume_countdown_500ms;
 
-extern const uint8_t         menu_timeout_500ms;
+extern const uint16_t         menu_timeout_500ms;
 extern const uint16_t        menu_timeout_long_500ms;
 
 extern const uint8_t         DTMF_RX_live_timeout_500ms;
