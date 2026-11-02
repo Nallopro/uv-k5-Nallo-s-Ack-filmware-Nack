@@ -1,4 +1,4 @@
-# Open re-implementation of the Quansheng UV-K5/K6/5R v2.1.27 firmware
+# Open re-implementation of the Quansheng UV-K5/K6/5R v2.1.27 firmware a.k.a NACK!
 
 I added and change a few things fell free to read over the main features and manual.
 
@@ -53,7 +53,6 @@ I have used 99.53% of available memory (61148/61439 bytes), maybe I could have s
 
  
   
-
 * many of OneOfEleven mods:
    * AM fix, huge improvement in reception quality
    * long press buttons functions replicating F+ action
