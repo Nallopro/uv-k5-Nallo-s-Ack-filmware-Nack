@@ -261,7 +261,7 @@ const char gSubMenu_ROGER[][6] =
 {
 	"OFF",
 	"ROGER",
-	"MDC"
+	"ID"
 };
 const char gSubMenu_SQLACK[4][5] =
 {

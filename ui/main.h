@@ -56,6 +56,7 @@ extern uint16_t gRangeNViewCountdown_500ms;
 void RANGEN_EnterView(void);
 void RANGEN_LeaveView(void);
 void UI_MAIN_NotifyAckId(const char id[4]);
+void UI_MAIN_NotifyTxId(const char id[4]);
 void UI_MAIN_NotifySnr(const char id[4], uint8_t snr);
 void UI_MAIN_NotifyEmergency(const char id[4]);
 void UI_DisplayMain(void);

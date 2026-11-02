@@ -80,6 +80,7 @@ center_line_t center_line = CENTER_LINE_NONE;
 typedef enum {
     NACK_UI_NONE = 0,
     NACK_UI_ACK,
+    NACK_UI_TX,
     NACK_UI_SNR,
     NACK_UI_EMG
 } NACK_UI_Type_t;
@@ -95,6 +96,12 @@ static NACK_UI_Entry_t gNackUi[2];
 
 static void UI_MAIN_NotifyNack(NACK_UI_Type_t type, const char id[4], uint8_t value)
 {
+    // A real ACK supersedes any previous Roger TX label immediately.
+    if (type == NACK_UI_ACK) {
+        for (unsigned int i = 0; i < 2; ++i)
+            if (gNackUi[i].type == NACK_UI_TX)
+                memset(&gNackUi[i], 0, sizeof(gNackUi[i]));
+    }
     char clean[5];
     memcpy(clean, id, 4);
     clean[4] = '\0';
@@ -123,9 +130,14 @@ void UI_MAIN_NotifyAckId(const char id[4])
     UI_MAIN_NotifyNack(NACK_UI_ACK, id, 0);
 }
 
+void UI_MAIN_NotifyTxId(const char id[4])
+{
+    UI_MAIN_NotifyNack(NACK_UI_TX, id, 0);
+}
+
 void UI_MAIN_NotifySnr(const char id[4], uint8_t snr)
 {
-    UI_MAIN_NotifyNack(NACK_UI_SNR, id, snr > 40 ? 40 : snr);
+    UI_MAIN_NotifyNack(NACK_UI_SNR, id, snr > 99 ? 99 : snr);
 }
 
 void UI_MAIN_NotifyEmergency(const char id[4])
@@ -666,6 +678,8 @@ static void RANGEN_DrawView(void)
     if (gNackUi[0].ttl_500ms > 0) {
         if (gNackUi[0].type == NACK_UI_ACK)
             sprintf(text, "Acked:%s", gNackUi[0].id);
+        else if (gNackUi[0].type == NACK_UI_TX)
+            sprintf(text, "TX:%s", gNackUi[0].id);
         else if (gNackUi[0].type == NACK_UI_SNR)
             sprintf(text, "SNR %s +%02u", gNackUi[0].id, gNackUi[0].value);
         else
@@ -1452,6 +1466,8 @@ void UI_DisplayMain(void)
                     sprintf(line, "EMG:%s %s", a->id, b->id);
                 else
                     sprintf(line, "%s EMG", a->id);
+            } else if (a->type == NACK_UI_TX) {
+                sprintf(line, "TX:%s", a->id);
             } else {
                 if (b != NULL)
                     sprintf(line, "Acked:%s %s", a->id, b->id);

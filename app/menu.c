@@ -1042,6 +1042,10 @@ void MENU_AcceptSetting(void)
         case MENU_RANGEN:
             gTxVfo->RANGEN_MODE = gSubMenuSelection;
             if (gTxVfo->RANGEN_MODE) {
+                if (gEeprom.ROGER == ROGER_MODE_ID) {
+                    gEeprom.ROGER = ROGER_MODE_OFF;
+                    gRequestSaveSettings = true;
+                }
                 if (gTxVfo->SQL_ACK_MODE != SQL_ACK_MUTE)
                     gTxVfo->SQL_ACK_MODE = SQL_ACK_OFF;
                 gTxVfo->BEACON_MODE = BEACON_OFF;
@@ -1052,6 +1056,10 @@ void MENU_AcceptSetting(void)
         case MENU_BEACON:
             gTxVfo->BEACON_MODE = gSubMenuSelection;
             if (gTxVfo->BEACON_MODE != BEACON_OFF) {
+                if (gEeprom.ROGER == ROGER_MODE_ID) {
+                    gEeprom.ROGER = ROGER_MODE_OFF;
+                    gRequestSaveSettings = true;
+                }
                 if (gTxVfo->SQL_ACK_MODE != SQL_ACK_MUTE)
                     gTxVfo->SQL_ACK_MODE = SQL_ACK_OFF;
                 gTxVfo->RANGEN_MODE = 0;
@@ -1400,9 +1408,28 @@ void MENU_AcceptSetting(void)
 
 
         case MENU_ROGER:
-
-            gEeprom.ROGER = gSubMenuSelection;
-
+            // Menu indexes: OFF=0, ROGER=1, ID=2. EEPROM ID uses 3,
+            // so legacy MDC value 2 never becomes Roger ID by accident.
+            gEeprom.ROGER = (gSubMenuSelection == 2u) ?
+                             ROGER_MODE_ID : gSubMenuSelection;
+            if (gEeprom.ROGER == ROGER_MODE_ID) {
+                // Selecting ID wins: automatically disable the other modes,
+                // instead of forcing Roger ID back to OFF.
+                for (uint8_t i = 0; i < 2; ++i) {
+                    VFO_Info_t *v = &gEeprom.VfoInfo[i];
+                    if (v->SQL_ACK_MODE != SQL_ACK_OFF ||
+                        v->BEACON_MODE != BEACON_OFF || v->RANGEN_MODE) {
+                        v->SQL_ACK_MODE = SQL_ACK_OFF;
+                        v->BEACON_MODE = BEACON_OFF;
+                        v->RANGEN_MODE = 0;
+                        if (i == (gEeprom.TX_VFO & 1u)) {
+                            gRequestSaveChannel = 2;
+                        } else {
+                            SETTINGS_SaveChannel(v->CHANNEL_SAVE, i, v, 2);
+                        }
+                    }
+                }
+            }
             break;
 
 
@@ -1427,6 +1454,11 @@ void MENU_AcceptSetting(void)
 
     // Beacon y SqlAck normal son mutuamente excluyentes.
     // OFF puede coexistir porque precisamente significa SqlAck apagado.
+    if (gTxVfo->SQL_ACK_MODE != SQL_ACK_OFF &&
+        gEeprom.ROGER == ROGER_MODE_ID) {
+        gEeprom.ROGER = ROGER_MODE_OFF;
+        gRequestSaveSettings = true;
+    }
     if (gTxVfo->SQL_ACK_MODE == SQL_ACK_BEEP ||
         gTxVfo->SQL_ACK_MODE == SQL_ACK_ID) {
         gTxVfo->BEACON_MODE = BEACON_OFF;
@@ -2177,7 +2209,8 @@ void MENU_ShowCurrentSetting(void)
 
         case MENU_ROGER:
 
-            gSubMenuSelection = gEeprom.ROGER;
+            gSubMenuSelection = (gEeprom.ROGER == ROGER_MODE_ID) ?
+                                2u : gEeprom.ROGER;
 
             break;
 

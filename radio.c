@@ -15,6 +15,7 @@
  */
 
 #include "driver/bk4819-regs.h"
+#include "app/app.h"
 #include <string.h>
 
 #include "am_fix.h"
@@ -1063,7 +1064,11 @@ void RADIO_SendCssTail(void)
 
 void RADIO_SendEndOfTransmission(void)
 {
-	BK4819_PlayRoger();
+    if (gEeprom.ROGER == ROGER_MODE_ID) {
+        NACK_SendRogerIdOnCurrentTx();
+    } else {
+        BK4819_PlayRoger();
+    }
 
 	// send the CTCSS/DCS tail tone - allows the receivers to mute the usual FM squelch tail/crash
 	if(gEeprom.TAIL_TONE_ELIMINATION)

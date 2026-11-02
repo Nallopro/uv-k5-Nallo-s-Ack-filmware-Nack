@@ -450,7 +450,7 @@ static uint16_t SQLACK_RandomDelay(uint16_t min, uint16_t max)
 // [1] TYPE
 // [2..5] source ID
 // [6..9] destination ID ("0000" for broadcast)
-// [10] value (SNR 0..40 where used)
+// [10] value (relative link quality 0..99 where used)
 // [11] reserved
 // [12..13] CRC16 over bytes 0..11
 // ---------------------------------------------------------------------------
@@ -462,6 +462,7 @@ static uint16_t SQLACK_RandomDelay(uint16_t min, uint16_t max)
 #define NACK_TYPE_EMERGENCY_ACK   0x05u
 #define NACK_TYPE_RANGEN_HELLO    0x06u
 #define NACK_TYPE_RANGEN_RESP     0x07u
+#define NACK_ACK_ID_TX_MARKER     0x01u  // Roger ID subtype in packet[11]
 #define NACK_PACKET_BYTES         14u
 #define NACK_FSK_CARRIER_LEAD_MS   350u  // RF carrier before digital data, helps slow squelch
 #define NACK_PACKET_WORDS         7u
@@ -497,6 +498,8 @@ static uint16_t gNackEmergencyAlert_10ms;
 static bool gNackEmergencySound;
 static uint16_t gAutoTxGuard_10ms;
 static uint16_t gBeaconCountdown_10ms[2];
+static uint16_t gBeaconRetryWindow_10ms[2]; // retry at most 5s after interval expires
+static uint8_t gBeaconRetryDelay_10ms[2];
 static uint8_t gBeaconModeSeen[2] = {0xFFu, 0xFFu};
 static uint8_t gBeaconChannelSeen[2] = {0xFFu, 0xFFu};
 static uint16_t gRangeNCountdown_10ms[2];
@@ -550,7 +553,7 @@ static void RANGEN_UpdatePeer(const char id[4], uint8_t snr)
         slot = oldest;
     memcpy(gRangeNPeers[slot].id, id, 4);
     gRangeNPeers[slot].id[4] = '\0';
-    gRangeNPeers[slot].snr = snr > 40 ? 40 : snr;
+    gRangeNPeers[slot].snr = snr > 99 ? 99 : snr;
     gRangeNPeers[slot].age_seconds = 0;
     gRangeNPeers[slot].present = true;
     gRangeNPeers[slot].lost = false;
@@ -577,11 +580,11 @@ static bool NACK_IsOwnId(const char id[4])
 static uint8_t NACK_ReadSnr(void)
 {
     // BK4819 does not expose a direct dB SNR register in this firmware.
-    // Its extended-noise indicator is 0=clean .. 127=noisy, so map it
-    // to the requested user scale 40..0 dB.
+    // Extended-noise indicator is 0=clean .. 127=noisy.
+    // Map to 0..99 relative link quality (NOT calibrated SNR in dB).
     const uint8_t noise = BK4819_GetExNoiceIndicator();
-    const uint8_t loss = (uint8_t)(((uint16_t)noise * 40u + 63u) / 127u);
-    return (loss >= 40u) ? 0u : (uint8_t)(40u - loss);
+    const uint8_t loss = (uint8_t)(((uint16_t)noise * 99u + 63u) / 127u);
+    return (loss >= 99u) ? 0u : (uint8_t)(99u - loss);
 }
 
 static void NACK_BuildPacket(uint8_t packet[NACK_PACKET_BYTES], uint8_t type,
@@ -608,6 +611,33 @@ static void NACK_BuildPacket(uint8_t packet[NACK_PACKET_BYTES], uint8_t type,
     const uint16_t crc = CRC_Calculate(packet, 12);
     packet[12] = (uint8_t)(crc & 0xFFu);
     packet[13] = (uint8_t)(crc >> 8);
+}
+
+// Roger ID is appended to an ALREADY ACTIVE voice PTT transmission.
+// It uses the normal Nallo ACK-ID FSK frame so compatible receivers
+// display the four-character sender ID; never start a second PTT here.
+void NACK_SendRogerIdOnCurrentTx(void)
+{
+    if (gEeprom.ROGER != ROGER_MODE_ID ||
+        gCurrentFunction != FUNCTION_TRANSMIT ||
+        gCurrentVfo == NULL)
+        return;
+
+    uint8_t packet[NACK_PACKET_BYTES];
+    NACK_BuildPacket(packet, NACK_TYPE_ACK_ID, NULL, 0);
+    // Distinguish Roger ID from a genuine reception acknowledgement.
+    // Keep TYPE 0x01 for compatibility with older Nallo decoders.
+    packet[11] = NACK_ACK_ID_TX_MARKER;
+    const uint16_t crc = CRC_Calculate(packet, 12);
+    packet[12] = (uint8_t)crc;
+    packet[13] = (uint8_t)(crc >> 8);
+    // Keep the PTT carrier on, but silence voice during the 350 ms lead-in.
+    // TX MUTE must be RELEASED before enabling the FSK modem, otherwise
+    // the digital ID may be muted as well and never reach another radio.
+    BK4819_EnterTxMute();
+    SYSTEM_DelayMs(NACK_FSK_CARRIER_LEAD_MS);
+    BK4819_ExitTxMute();
+    BK4819_SendNackFSK(packet);
 }
 
 static bool NACK_SendPacketOnVfo(const uint8_t vfo, uint8_t type,
@@ -740,7 +770,10 @@ static void NACK_ProcessReceivedPacket(void)
 
     switch (packet[1]) {
         case NACK_TYPE_ACK_ID:
-            UI_MAIN_NotifyAckId(source);
+            if (packet[11] == NACK_ACK_ID_TX_MARKER)
+                UI_MAIN_NotifyTxId(source);
+            else
+                UI_MAIN_NotifyAckId(source);
             break;
 
         case NACK_TYPE_SNR_REQ:
@@ -750,7 +783,7 @@ static void NACK_ProcessReceivedPacket(void)
 
         case NACK_TYPE_SNR_RESP:
             if (NACK_IsOwnId(target))
-                UI_MAIN_NotifySnr(source, packet[10] > 40 ? 40 : packet[10]);
+                UI_MAIN_NotifySnr(source, packet[10] > 99 ? 99 : packet[10]);
             break;
 
         case NACK_TYPE_RANGEN_HELLO:
@@ -1204,10 +1237,12 @@ static bool BEACON_SendBeep(const uint8_t vfo)
     if (pVfo->BEACON_MODE == BEACON_OFF || pVfo->RANGEN_MODE ||
         (pVfo->SQL_ACK_MODE != SQL_ACK_OFF && pVfo->SQL_ACK_MODE != SQL_ACK_MUTE))
         return false;
-    if (gEeprom.SQUELCH_LEVEL == 0 || gMonitor || gPttIsPressed ||
-        gCurrentFunction == FUNCTION_TRANSMIT || gScanStateDir != SCAN_OFF)
+    // Beacon transmits on schedule even if squelch is open (occupied RF).
+    // Never preempt our own PTT, an ongoing TX or the channel scanner.
+    if (gPttIsPressed || gCurrentFunction == FUNCTION_TRANSMIT ||
+        gScanStateDir != SCAN_OFF)
         return false;
-    if ((gEeprom.RX_VFO & 1u) != vfo || g_SquelchLost)
+    if ((gEeprom.RX_VFO & 1u) != vfo)
         return false;
 
     gRxVfo = pVfo;
@@ -5329,10 +5364,13 @@ for (uint8_t vfo = 0; vfo < 2; vfo++)
             gBeaconModeSeen[vfo] = mode;
             gBeaconChannelSeen[vfo] = channel;
             gBeaconCountdown_10ms[vfo] = period;
+            gBeaconRetryWindow_10ms[vfo] = 0;
+            gBeaconRetryDelay_10ms[vfo] = 0;
         }
 
         if (period == 0 || pVfo->RANGEN_MODE) {
             gBeaconCountdown_10ms[vfo] = 0;
+            gBeaconRetryWindow_10ms[vfo] = 0;
             continue;
         }
 
@@ -5341,18 +5379,33 @@ for (uint8_t vfo = 0; vfo < 2; vfo++)
             continue;
         }
 
+        // Beacon transmits even with RF activity/squelch open. Only our own
+        // transmissions or queued digital replies can defer it (up to 5s).
+        // Do not overlap an ACK, SNR, RangeN or emergency TX.
+        if (gBeaconRetryWindow_10ms[vfo] == 0)
+            gBeaconRetryWindow_10ms[vfo] = 500;
+        if (--gBeaconRetryWindow_10ms[vfo] == 0) {
+            gBeaconCountdown_10ms[vfo] = period;
+            continue;
+        }
+        if (gBeaconRetryDelay_10ms[vfo] > 0) {
+            gBeaconRetryDelay_10ms[vfo]--;
+            continue;
+        }
+
         bool sqlAckPending = false;
         for (uint8_t i = 0; i < 2; i++)
             if (gSqlAck[i].pending)
                 sqlAckPending = true;
 
-        // Beacon is deliberately expendable. If anything more important is
-        // pending, skip this beacon instead of queuing transmissions.
         if (gNackPending.type == NACK_PENDING_NONE &&
-            !sqlAckPending && gAutoTxGuard_10ms == 0)
-            (void)BEACON_SendBeep(vfo);
-
-        gBeaconCountdown_10ms[vfo] = period;
+            !sqlAckPending && gAutoTxGuard_10ms == 0 &&
+            BEACON_SendBeep(vfo)) {
+            gBeaconCountdown_10ms[vfo] = period;
+            gBeaconRetryWindow_10ms[vfo] = 0;
+        } else {
+            gBeaconRetryDelay_10ms[vfo] = SQLACK_RandomDelay(1u, 50u);
+        }
     }
 
 

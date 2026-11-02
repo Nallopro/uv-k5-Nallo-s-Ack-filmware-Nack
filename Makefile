@@ -213,7 +213,7 @@ endif
 ifeq (, $(VERSION_STRING))
 	VERSION_STRING := NOGIT
 endif
-VERSION_STRING := V.1
+VERSION_STRING := V-1.1
 
 
 ASFLAGS = -c -mcpu=cortex-m0
