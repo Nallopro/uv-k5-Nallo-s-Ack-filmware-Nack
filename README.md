@@ -8,6 +8,7 @@ All is a cloned and customized version of DualTachyon's open firmware found [her
 > [!TIP]
 > There is a work done by others on forks of this repository. I encourage you to take a look at those too. [SEE HERE](https://github.com/egzumer/uv-k5-firmware-custom/discussions/485)
 
+
 > [!WARNING]  
 > Use this firmware at your own risk (entirely). There is absolutely no guarantee that it will work in any way shape or form on your radio(s), it may even brick your radio(s), in which case, you'd need to buy another radio.
 Anyway, have fun. I would also recommend clearing the eeprom :)
@@ -23,6 +24,33 @@ Anyway, have fun. I would also recommend clearing the eeprom :)
 * [License](#license)
 
 ## Main features:
+
+Nallo's Ack firmware or "NACK!" is (an excuse to mess with my radios, honestly xD) a firmware for the Quansheng UV5K centered on automatic transmissions, acknowledgment of reception and knowing the state of up to 4 other radios (there isn't a softlock making it impossible to use more, however it isn't supported as it might not work as intended).
+
+* What's new on NACK? (More info in the manual)
+  * SqlAck -> Send a confirmation when the radio's squelch closes after being opened.
+  * SNR REQ -> Request a Signal to Noise Ratio test from another radio.
+  * Emergency -> Allows you to send an "emergency type packet" which will make the other radios sound.
+  * Beacon -> Automatically transmit a tone every 3-15-30 seconds.
+  * RangeN -> RangeNet (I couldn't come up with a better name, sorry ;-;) allows you to automatically get reports of signals from other radios and beeps when one doesn't answer, allowing you to know when one has left each other's range.
+ 
+
+  * I also moved the Sql option to number one on the menu.
+
+- What have I deleted?
+  -Scan Ranges
+  -Copy chanel to VFO
+  -MDC option in roger
+  -SOS flashglight (seriously, who could possibly need this in an emergency?) and I also removed the flashing light when you manually turn it on, it was very annoying.
+  -DTMF Calling and related functions
+  -NOAA (as my software uses the spectrum analyser)
+  -Aircopy (just say the damn frecuency??)
+  -Voice (I had to take out that small lady who leaves inside the quansheng and tells you everything)
+  -Alarm (again, why would you use this??)
+  -Tx1750 (this one might have been usefull but ig you can alwasy wistle xD)
+  -F_Cali (I would like to add it back)
+  
+
 * many of OneOfEleven mods:
    * AM fix, huge improvement in reception quality
    * long press buttons functions replicating F+ action
