@@ -40,16 +40,16 @@ I have used 99.53% of available memory (61148/61439 bytes), maybe I could have s
   * I also moved the Sql option to number one on the menu.
 
 - What have I deleted?
-  -Scan Ranges
-  -Copy chanel to VFO
-  -MDC option in roger
-  -SOS flashglight (seriously, who could possibly need this in an emergency?) and I also removed the flashing light when you manually turn it on, it was very annoying.
-  -DTMF Calling and related functions
-  -NOAA (as my software uses the spectrum analyser)
-  -Aircopy (just say the damn frecuency??)
-  -Voice (I had to take out that small lady who leaves inside the quansheng and tells you everything)
-  -Alarm (again, why would you use this??)
-  -Tx1750 (this one might have been usefull but ig you can always wistle xD)
+  * Scan Ranges
+  * Copy chanel to VFO
+  * MDC option in roger
+  * SOS flashglight (seriously, who could possibly need this in an emergency?) and I also removed the flashing light when you manually turn it on, it was very annoying.
+  * DTMF Calling and related functions
+  * NOAA (as my software uses the spectrum analyser)
+  * Aircopy (just say the damn frecuency??)
+  * Voice (I had to take out that small lady who leaves inside the quansheng and tells you everything)
+  * Alarm (again, why would you use this??)
+  * Tx1750 (this one might have been usefull but ig you can always wistle xD)
 
  
   
