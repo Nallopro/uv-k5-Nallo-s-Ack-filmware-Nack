@@ -27,7 +27,7 @@ Anyway, have fun. I would also recommend clearing the eeprom :)
 
 Nallo's Ack firmware or "NACK!" is (an excuse to mess with my radios, honestly xD) a firmware for the Quansheng UV5K centered on automatic transmissions, acknowledgment of reception and knowing the state of up to 4 other radios (there isn't a softlock making it impossible to use more, however it isn't supported as it might not work as intended).
 
-I have used 99.53% of available memory (61148/61439 bytes), maybe I could have squeezed in another small function but ig this will do.
+I have used 99.61% of available memory (61200/61439 bytes), maybe I could have squeezed in another small function but ig this will do.
 
 * What's new on NACK? (More info in the manual)
   * SqlAck -> Send a confirmation when the radio's squelch closes after being opened.
