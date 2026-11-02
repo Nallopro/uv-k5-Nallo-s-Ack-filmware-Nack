@@ -684,6 +684,11 @@ static bool NACK_SendPacketOnVfo(const uint8_t vfo, uint8_t type,
 static void NACK_QueueResponse(NACK_PendingType_t type, uint8_t vfo,
                                const char target[4], uint8_t value)
 {
+    // SqlAck MUTE disables ALL automatic digital replies (SNR, RangeN, EMG).
+    // Receiving packets, manual SNR/EMG sends and periodic RangeN HELLO remain active.
+    if (vfo > 1u || gEeprom.VfoInfo[vfo].SQL_ACK_MODE == SQL_ACK_MUTE)
+        return;
+
     if (gNackPending.type != NACK_PENDING_NONE) {
         // Emergency ACK has priority over an SNR response.
         if ((type != NACK_PENDING_EMG_ACK &&
@@ -4846,7 +4851,10 @@ void APP_TimeSlice10ms(void)
             } else {
                 const uint8_t vfo = gNackPending.vfo & 1u;
                 VFO_Info_t *pVfo = &gEeprom.VfoInfo[vfo];
-                if (pVfo->CHANNEL_SAVE != gNackPending.channel) {
+                // Cancel already-queued replies if MUTE was enabled after RX.
+                // This also covers mode changes while a reply timer is running.
+                if (pVfo->SQL_ACK_MODE == SQL_ACK_MUTE ||
+                    pVfo->CHANNEL_SAVE != gNackPending.channel) {
                     gNackPending.type = NACK_PENDING_NONE;
                 } else if ((gEeprom.RX_VFO & 1u) != vfo || g_SquelchLost || gMonitor ||
                            gPttIsPressed || gCurrentFunction == FUNCTION_TRANSMIT ||
