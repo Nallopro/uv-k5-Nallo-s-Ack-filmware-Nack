@@ -37,7 +37,8 @@ I have used 99.53% of available memory (61148/61439 bytes), maybe I could have s
   * RangeN -> RangeNet (I couldn't come up with a better name, sorry ;-;) allows you to automatically get reports of signals from other radios and beeps when one doesn't answer, allowing you to know when one has left each other's range.
  
 
-  * I also moved the Sql option to number one on the menu.
+* I also moved the Sql option to number one on the menu.
+* And I also upped the time it takes for the menu to close to 3 minutes and 5 minutes in the special menus.
 
 - What have I deleted?
   * Scan Ranges
@@ -85,7 +86,25 @@ I have used 99.53% of available memory (61148/61439 bytes), maybe I could have s
 
  ## Manual
 
-Up to date manual is available in the [Wiki section](https://github.com/egzumer/uv-k5-firmware-custom/wiki)
+Up to date manual is **NOT** available in the [Wiki section](https://github.com/egzumer/uv-k5-firmware-custom/wiki) as i added my own functions, but fear not, I'll explain them in a detailed way here.
+
+It's worth noting that this radio doesn't tx in ssb or am.
+
+Menu number 49, "ID", lets you set your ID for this radio. Think about it as your radio's name that will be broadcast to other compatible radios. It can (and it's preferred to) be 4 characters long and can contain numbers. Example: AB12. Press the menu key to advance to the next character and exit to go to the previous one. If you are on the first one and press exit, you will leave without applying your changes. If you are on the last one and press menu, you will save the ID.
+
+Menu number 50, "SqlAck", when enabled, if the sql is opened for more than 700ms it'll wait for it to close and then wait between 3 to 5s and tx either a tone or your ID. It has different modes:
+
+* Mute: the radio will NOT tx any automatic acks
+* OFF: the radio will not tx when the sql is closed
+* Beep: the radio will tx two tones (70ms on, 45ms off, times two) when the squelch is closed
+* ID: the radio will tx your ID when the squelch is closed
+
+This function is useful cause it lets you know when you are hitting that radio's squelch (that can be later modified so it only lets through transmissions you can understand). If the channel is occupied it will keep trying for a maximum of 10s at random intervals. After one ack has been correctly transmitted, none will follow for 20s, even if the squelch is closed again.
+
+
+
+
+How does everything work? I'm glad you asked:
 
 ## Radio performance
 
