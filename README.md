@@ -1,7 +1,7 @@
 # Open re-implementation of the Quansheng UV-K5/K6/5R v2.1.27 firmware a.k.a NACK!
 
 
-<img src="Pictures/20261103_221026.jpg" width="400">
+<img src="Pictures/20261103_221026.jpg" width="300">
 
 I added and change a few things fell free to read over the main features and manual.
 
