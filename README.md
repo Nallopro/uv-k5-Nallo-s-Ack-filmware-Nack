@@ -101,10 +101,21 @@ Menu number 50, "SqlAck", when enabled, if the sql is opened for more than 700ms
 
 This function is useful cause it lets you know when you are hitting that radio's squelch (that can be later modified so it only lets through transmissions you can understand). If the channel is occupied it will keep trying for a maximum of 10s at random intervals. After one ack has been correctly transmitted, none will follow for 20s, even if the squelch is closed again.
 
+Menu 51, "Beacon" TX a 120ms 1000Hz tone every 3, 15 or 30 seconds even if the SQL is open. The radio will keep answering SNR requests. If Beacon is activated, RangeN/SqlAck (only in beep or ID) will automatically be turned off.
 
+Menu 52, "RangeN" after being switched to ON, press F and the 0 key to enter this new menu. Every 50-65s the radio will TX and listen for any response from other radios with this mode on. If a radio hears this transmission, it will answer and reset its own timer. You will be able to see how well other radios are received by you. If the radio's squelch is open, it'll keep trying to TX for 5s at random intervals. Moreover, the 50-65s timer will not advance if the squelch is open. If another radio doesn't answer in 80s, your radio will make a beep sound (not transmitted) to notify you. This mode is still compatible with SNR requests and received SqlAck.
 
+You'll see the last 4 radios received, the last ping received/transmitted, VFO 1/memory or VFO 2/memory with the settings for that channel.
+
+When RangeN is turned on, it'll switch off SqlAck (ID and beep) and Beacon from your own radio.
+
+SNR Request: This is a function only accessible via a long press or short press of the side buttons or a long press of Menu (selectable in menus 24 to 28). This requests a signal-to-noise ratio from other radios to see how well you are being heard, 99 being the best and 0 the worst. This is just a number to give you a rough idea. An empty tone will be TXed for 350ms and then the SNR request to help with the squelch. If you want your radio to never answer, set SqlAck to mute.
+
+EMERG: This is a function only accessible via a long press of the side buttons or Menu (selectable in menus 24 to 28). This will send an "SOS" packet that triggers whatever you selected in menu number 53 (text, light and text, sound and text, or light, sound and text). This will also request a high-priority ACK. The alarm that sounds if you have selected sound will not stop unless you press any key, and the same goes for the light.
 
 How does everything work? I'm glad you asked:
+
+Radio packets are transmitted in real FSK 1200 baud. A 350ms empty tone is transmitted before each transmission to help prevent the squelch from cutting the data packets. First, we send 15 bytes to sync the decoder, then 14 bytes with the type of packet, ID (from), ID (to), and a CRC16 to check. About 0.6s in TX.
 
 ## Radio performance
 
