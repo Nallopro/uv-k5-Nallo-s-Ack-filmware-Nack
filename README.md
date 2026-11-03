@@ -1,5 +1,7 @@
 # Open re-implementation of the Quansheng UV-K5/K6/5R v2.1.27 firmware a.k.a NACK!
 
+![NACK!](Pictures/20261103_221026.jpg)
+
 I added and change a few things fell free to read over the main features and manual.
 
 This repository is a merge of [OneOfEleven custom firmware](https://github.com/OneOfEleven/uv-k5-firmware-custom) with [fagci spectrum analizer](https://github.com/fagci/uv-k5-firmware-fagci-mod/tree/refactor) plus my few changes.<br>
