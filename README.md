@@ -91,14 +91,13 @@ I have used 99.61% of available memory (61200/61439 bytes), maybe I could have s
   <img src="Pictures/20261103_221244.jpg" width="250">
   <img src="Pictures/20261103_221246.jpg" width="250">
 </p>
-
  <p align="center">
   <img src="Pictures/20261103_221305.jpg" width="250">
   <img src="Pictures/20261103_221403.jpg" width="250">
 </p>
 
  <p align="center">
-  <img src="Pictures/lv_0_20261103221658.gif" width="250">
+  <img src="Pictures/lv_0_20261103221658.gif" width="350">
  </p>
 
  ## Manual
